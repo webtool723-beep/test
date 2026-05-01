@@ -1121,7 +1121,8 @@ function renderOrderCard(order) {
           <div class="order-table">📍 Table ${order.table_no}</div>
           <div class="order-time">📅 ${date} &nbsp;⏱ ${time}</div>
 <div class="order-time">📞 ${order.phone_no || 'N/A'}</div>
-${order.email ? `<div class="order-time" style="color:#42a5f5;">📧 ${order.email}</div>` : ''}
+${order.customer_name ? `<div class="order-time">👤 ${order.customer_name}</div>` : ''}
+${order.customer_email ? `<div class="order-time">✉️ ${order.customer_email}</div>` : ''}
         </div>
         ${statusBadge}
       </div>
@@ -1221,7 +1222,6 @@ function printOrder(orderId) {
   document.getElementById('psOrderId').textContent = order.order_id;
   document.getElementById('psTable').textContent = order.table_no;
   document.getElementById('psPhone').textContent = order.phone_no || 'N/A';
-  document.getElementById('psEmail').textContent = order.email || '';
   document.getElementById('psDate').textContent = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('psTime').textContent = dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
   document.getElementById('psStatus').textContent = order.status.toUpperCase();
@@ -1334,7 +1334,6 @@ async function requestNotifPermission() {
   <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
   <div class="ps-meta"><strong>Table No:</strong> <span id="psTable"></span></div>
   <div class="ps-meta"><strong>Phone:</strong> <span id="psPhone"></span></div>
-  <div class="ps-meta" id="psEmailRow"><strong>Email:</strong> <span id="psEmail"></span></div>
   <div class="ps-meta"><strong>Date:</strong> <span id="psDate"></span></div>
   <div class="ps-meta"><strong>Time:</strong> <span id="psTime"></span></div>
   <div class="ps-meta"><strong>Status:</strong> <span id="psStatus"></span></div>
