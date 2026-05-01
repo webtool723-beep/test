@@ -1121,8 +1121,6 @@ function renderOrderCard(order) {
           <div class="order-table">📍 Table ${order.table_no}</div>
           <div class="order-time">📅 ${date} &nbsp;⏱ ${time}</div>
 <div class="order-time">📞 ${order.phone_no || 'N/A'}</div>
-${order.customer_name ? `<div class="order-time">👤 ${order.customer_name}</div>` : ''}
-${order.customer_email ? `<div class="order-time">✉️ ${order.customer_email}</div>` : ''}
         </div>
         ${statusBadge}
       </div>
