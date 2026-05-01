@@ -1124,9 +1124,22 @@ async function placeOrder() {
     phone_no: phoneNo,
     items: items,
     total: total,
-    note: note,
+    note: note,orderHistory.unshift({
+      order_id: orderId,
+      table_no: tableNo,
+      phone_no: phoneNo,
+      items: items,
+      total: total,
+      note: note,
+      status: 'pending',
+      placed_at: new Date(),
+      customer_name: window._currentUser ? (window._currentUser.displayName || '') : '',
+      customer_email: window._currentUser ? (window._currentUser.email || '') : '',
+    });
     status: 'pending',
     created_at: new Date().toISOString(),
+    customer_name: window._currentUser ? (window._currentUser.displayName || '') : '',
+    customer_email: window._currentUser ? (window._currentUser.email || '') : '',
     user_id: window._currentUser ? window._currentUser.uid : null,
   };
 
