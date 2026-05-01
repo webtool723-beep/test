@@ -6,6 +6,102 @@
 <title>Green Cucina — Order</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  // ── YOUR FIREBASE CONFIG ──
+  const firebaseConfig = {
+    apiKey: "AIzaSyCaetYJOBQoL0c6Y1DdJN1m-PMxpCcuRc0",
+  authDomain: "green-cucina.firebaseapp.com",
+  projectId: "green-cucina",
+  storageBucket: "green-cucina.firebasestorage.app",
+  messagingSenderId: "810215846761",
+  appId: "1:810215846761:web:201d72b7f2aea201dbc3f8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const googleProvider = new GoogleAuthProvider();
+
+  window._firebaseAuth = auth;
+  window._googleProvider = googleProvider;
+  window._firebaseFns = { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInWithPopup, updateProfile };
+
+  onAuthStateChanged(auth, (user) => {
+    window._currentUser = user;
+    const btn = document.getElementById('authHeaderBtn');
+    const userInfo = document.getElementById('headerUserInfo');
+    if (!btn) return;
+    if (user) {
+      btn.style.display = 'none';
+      userInfo.style.display = 'flex';
+      document.getElementById('headerUserName').textContent = user.displayName || user.email.split('@')[0];
+      const avatar = document.getElementById('headerAvatar');
+      avatar.textContent = (user.displayName || user.email)[0].toUpperCase();
+    } else {
+      btn.style.display = 'flex';
+      userInfo.style.display = 'none';
+    }
+  });
+
+  window.firebaseSignOut = async () => {
+    await window._firebaseFns.signOut(window._firebaseAuth);
+  };
+
+  window.authLogin = async () => {
+    const email = document.getElementById('authEmail').value.trim();
+    const pass = document.getElementById('authPass').value;
+    const errEl = document.getElementById('authError');
+    errEl.textContent = '';
+    try {
+      await window._firebaseFns.signInWithEmailAndPassword(window._firebaseAuth, email, pass);
+      closeAuthModal();
+    } catch(e) {
+      errEl.textContent = friendlyError(e.code);
+    }
+  };
+
+  window.authSignup = async () => {
+    const name = document.getElementById('authName').value.trim();
+    const email = document.getElementById('authEmail').value.trim();
+    const pass = document.getElementById('authPass').value;
+    const errEl = document.getElementById('authError');
+    errEl.textContent = '';
+    if (!name) { errEl.textContent = 'Please enter your name.'; return; }
+    try {
+      const cred = await window._firebaseFns.createUserWithEmailAndPassword(window._firebaseAuth, email, pass);
+      await window._firebaseFns.updateProfile(cred.user, { displayName: name });
+      closeAuthModal();
+    } catch(e) {
+      errEl.textContent = friendlyError(e.code);
+    }
+  };
+
+  window.authGoogle = async () => {
+    const errEl = document.getElementById('authError');
+    errEl.textContent = '';
+    try {
+      await window._firebaseFns.signInWithPopup(window._firebaseAuth, window._googleProvider);
+      closeAuthModal();
+    } catch(e) {
+      errEl.textContent = friendlyError(e.code);
+    }
+  };
+
+  function friendlyError(code) {
+    const map = {
+      'auth/invalid-email': 'Invalid email address.',
+      'auth/user-not-found': 'No account found with this email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/email-already-in-use': 'This email is already registered.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
+    };
+    return map[code] || 'Something went wrong. Please try again.';
+  }
+</script>
 <style>
   :root {
     --green-dark: #1a2e1a;
@@ -468,6 +564,128 @@
     .categories { padding: 16px 16px 8px; }
     .table-bar { padding: 12px 16px; }
   }
+
+  /* AUTH MODAL */
+.auth-overlay {
+  position: fixed; inset: 0;
+  background: rgba(26,46,26,0.65);
+  z-index: 400;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.auth-overlay.show { opacity: 1; pointer-events: all; }
+.auth-card {
+  background: var(--warm-white);
+  border-radius: 24px;
+  padding: 36px 28px 28px;
+  max-width: 360px; width: 100%;
+  position: relative;
+  transform: scale(0.92);
+  transition: transform 0.3s;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.auth-overlay.show .auth-card { transform: scale(1); }
+.auth-close {
+  position: absolute; top: 16px; right: 18px;
+  background: none; border: none;
+  font-size: 1.3rem; color: var(--text-light);
+  cursor: pointer;
+}
+.auth-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.35rem; color: var(--green-dark);
+  text-align: center; margin-bottom: 4px;
+}
+.auth-logo span { color: var(--green-light); font-style: italic; }
+.auth-sub { text-align: center; font-size: 0.8rem; color: var(--text-light); margin-bottom: 22px; }
+.auth-tabs {
+  display: flex; border: 1.5px solid var(--border);
+  border-radius: 50px; overflow: hidden; margin-bottom: 22px;
+}
+.auth-tab {
+  flex: 1; padding: 9px 0;
+  text-align: center; font-size: 0.85rem; font-weight: 500;
+  cursor: pointer; transition: all 0.2s;
+  border: none; background: none; font-family: 'DM Sans', sans-serif;
+  color: var(--text-mid);
+}
+.auth-tab.active {
+  background: var(--green-dark); color: var(--cream);
+}
+.auth-name-wrap { display: none; }
+.auth-name-wrap.show { display: block; }
+.auth-input {
+  width: 100%; margin-bottom: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 11px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem; background: white;
+  color: var(--text-dark); transition: border-color 0.2s;
+}
+.auth-input:focus { outline: none; border-color: var(--green-accent); }
+.auth-error {
+  color: #c00; font-size: 0.78rem;
+  min-height: 18px; margin-bottom: 8px;
+  text-align: center;
+}
+.auth-primary-btn {
+  width: 100%; padding: 13px;
+  background: var(--green-dark); color: var(--cream);
+  border: none; border-radius: 50px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.92rem; font-weight: 500;
+  cursor: pointer; transition: background 0.2s; margin-bottom: 12px;
+}
+.auth-primary-btn:hover { background: var(--green-accent); }
+.auth-divider {
+  text-align: center; font-size: 0.78rem;
+  color: var(--text-light); margin-bottom: 12px;
+  position: relative;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; position: absolute; top: 50%;
+  width: 40%; height: 1px; background: var(--border);
+}
+.auth-divider::before { left: 0; }
+.auth-divider::after { right: 0; }
+.auth-google-btn {
+  width: 100%; padding: 11px;
+  background: white; color: var(--text-dark);
+  border: 1.5px solid var(--border);
+  border-radius: 50px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: border-color 0.2s;
+}
+.auth-google-btn:hover { border-color: var(--green-accent); }
+/* Header user info */
+.header-user {
+  display: none; align-items: center; gap: 10px;
+}
+.header-avatar {
+  width: 32px; height: 32px;
+  background: var(--green-light);
+  color: var(--green-dark);
+  border-radius: 50%;
+  font-weight: 700; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.header-username {
+  color: var(--cream); font-size: 0.85rem;
+  font-weight: 500; max-width: 90px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.header-logout {
+  background: rgba(255,255,255,0.12);
+  color: var(--cream); border: none;
+  border-radius: 50px; padding: 6px 12px;
+  font-size: 0.78rem; cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.2s;
+}
+.header-logout:hover { background: rgba(255,255,255,0.22); }
 </style>
 </head>
 <body>
@@ -476,15 +694,27 @@
 <script>
   const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM';
-  const WORKER_URL = 'https://green-cucina.jatan370.workers.dev';
 </script>
 
 <header>
   <div class="logo">🌿 Green <span>Cucina</span></div>
-  <button class="cart-btn" onclick="toggleHistory()" style="background:#2d4a2d;margin-right:8px;">
-  📋 My Orders
-</button>
-  <button class="cart-btn" onclick="toggleCart()">
+
+  <!-- Auth: shown when logged out -->
+  <button class="cart-btn" id="authHeaderBtn" onclick="openAuthModal()" style="background:#2d4a2d;">
+    🔑 Login
+  </button>
+
+  <!-- User info: shown when logged in -->
+  <div class="header-user" id="headerUserInfo">
+    <div class="header-avatar" id="headerAvatar">?</div>
+    <span class="header-username" id="headerUserName"></span>
+    <button class="header-logout" onclick="firebaseSignOut()">Logout</button>
+  </div>
+
+  <button class="cart-btn" onclick="toggleHistory()" style="background:#2d4a2d;margin-left:8px;">
+    📋 My Orders
+  </button>
+  <button class="cart-btn" onclick="toggleCart()" style="margin-left:8px;">
     🛒 Your Order
     <span class="cart-count" id="cartCount">0</span>
   </button>
@@ -507,9 +737,6 @@
   <input type="text" id="tableNo" class="table-input" placeholder="e.g. 05" maxlength="4"/>
   <label for="phoneNo">📞 Mobile:</label>
   <input type="tel" id="phoneNo" class="table-input" placeholder="10-digit number" maxlength="10" style="width:150px"/>
-  <label for="customerEmail" style="white-space:nowrap;">📧 Email <span style="font-size:0.75rem;color:var(--text-light);font-weight:400;">(receipt)</span>:</label>
-<input type="email" id="customerEmail" class="table-input" placeholder="optional" style="width:190px;"/>
-
 </div>
 
 <div class="categories" id="categories"></div>
@@ -615,11 +842,41 @@
     <div class="order-id-badge" id="successOrderId"></div>
     <p style="font-size:0.8rem;color:#aaa;">Show this to staff if needed</p>
     <button id="downloadBillBtn" style="background:#1a2e1a;color:#f7f3ed;border:none;border-radius:50px;padding:12px 28px;font-family:'DM Sans',sans-serif;font-size:0.9rem;cursor:pointer;margin-top:10px;display:block;width:100%;margin-bottom:8px;">⬇ Download Bill</button>
-    <div id="emailReceiptStatus" style="font-size:0.8rem;min-height:18px;margin-bottom:8px;transition:color 0.3s;"></div>
     <button class="success-close" onclick="closeSuccess()">Order More 🌿</button>
   </div>
 </div>
+<!-- Auth Modal -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
+    <button class="auth-close" onclick="closeAuthModal()">✕</button>
+    <div class="auth-logo">🌿 Green <span>Cucina</span></div>
+    <div class="auth-sub">Sign in to track your orders</div>
 
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Login</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- Name (Sign Up only) -->
+    <div class="auth-name-wrap" id="authNameWrap">
+      <input class="auth-input" id="authName" type="text" placeholder="Your full name" />
+    </div>
+
+    <input class="auth-input" id="authEmail" type="email" placeholder="Email address" />
+    <input class="auth-input" id="authPass" type="password" placeholder="Password (min 6 chars)" />
+
+    <div class="auth-error" id="authError"></div>
+
+    <button class="auth-primary-btn" id="authSubmitBtn" onclick="authLogin()">Login</button>
+
+    <div class="auth-divider">or</div>
+
+    <button class="auth-google-btn" onclick="authGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+  </div>
+</div>
 <script>
 // ═══════════════════════════════════════════
 // MENU DATA (from Green Cucina website)
@@ -846,12 +1103,6 @@ async function placeOrder() {
     document.getElementById('phoneNo').focus();
     return;
   }
-  const customerEmail = document.getElementById('customerEmail').value.trim();
-if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
-  alert('Please enter a valid email address (or leave it blank).');
-  document.getElementById('customerEmail').focus();
-  return;
-}
   if (Object.keys(cart).length === 0) return;
 
   const btn = document.getElementById('placeOrderBtn');
@@ -870,7 +1121,6 @@ if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
     order_id: orderId,
     table_no: tableNo,
     phone_no: phoneNo,
-    email: customerEmail || null,
     items: items,
     total: total,
     note: note,
@@ -917,39 +1167,8 @@ if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
     downloadBill(orderId, tableNo, phoneNo, items, total);
     document.getElementById('successModal').classList.add('show');
     document.getElementById('orderNote').value = '';
-renderMenu();
-
-// Send email receipt via Cloudflare Worker (no API key in this file)
-if (customerEmail && WORKER_URL && !WORKER_URL.includes('YOUR_WORKER')) {
-  const emailStatusEl = document.getElementById('emailReceiptStatus');
-  if (emailStatusEl) {
-    emailStatusEl.textContent = '📧 Sending receipt to ' + customerEmail + '…';
-    emailStatusEl.style.color = '#8a8a8a';
+    renderMenu();
   }
-  fetch(WORKER_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customerEmail, orderId, tableNo, phoneNo, items, total, note })
-  })
-  .then(r => {
-    if (emailStatusEl) {
-      if (r.ok) {
-        emailStatusEl.textContent = '✅ Receipt sent to ' + customerEmail;
-        emailStatusEl.style.color = '#4a7c4a';
-      } else {
-        emailStatusEl.textContent = '⚠️ Could not send receipt email.';
-        emailStatusEl.style.color = '#c00';
-      }
-    }
-  })
-  .catch(() => {
-    if (emailStatusEl) {
-      emailStatusEl.textContent = '⚠️ Could not send receipt email.';
-      emailStatusEl.style.color = '#c00';
-    }
-  });
-}
-}
 }
 
 function downloadBill(orderId, tableNo, phoneNo, items, total) {
@@ -1010,6 +1229,36 @@ function renderHistory() {
 function closeSuccess() {
   document.getElementById('successModal').classList.remove('show');
 }
+
+// ═══════════════════════════════════════════
+// AUTH MODAL LOGIC
+// ═══════════════════════════════════════════
+let _authMode = 'login';
+
+function openAuthModal() {
+  document.getElementById('authOverlay').classList.add('show');
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPass').value = '';
+  document.getElementById('authName').value = '';
+}
+function closeAuthModal() {
+  document.getElementById('authOverlay').classList.remove('show');
+}
+function switchAuthTab(mode) {
+  _authMode = mode;
+  document.getElementById('authError').textContent = '';
+  document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+  document.getElementById('tabSignup').classList.toggle('active', mode === 'signup');
+  document.getElementById('authNameWrap').classList.toggle('show', mode === 'signup');
+  const btn = document.getElementById('authSubmitBtn');
+  btn.textContent = mode === 'login' ? 'Login' : 'Create Account';
+  btn.onclick = mode === 'login' ? authLogin : authSignup;
+}
+// Close on backdrop click
+document.getElementById('authOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeAuthModal();
+});
 </script>
 </body>
 </html>
