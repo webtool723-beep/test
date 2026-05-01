@@ -517,16 +517,26 @@
     .stats-bar, .filter-tabs, .orders-container { padding-left: 16px; padding-right: 16px; }
   }
 
-  @media print {
+  @page {
+  size: auto;
+  margin: 14mm 12mm;
+}
+@media print {
+  html, body {
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   body > * { display: none !important; }
   #printSlip { display: block !important; }
 }
 #printSlip {
   display: none;
   font-family: 'DM Sans', sans-serif;
-  max-width: 300px;
-  margin: 0 auto;
-  padding: 24px 20px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
   color: #000;
   background: #fff;
 }
@@ -787,24 +797,7 @@
     </button>
   </div>
 </div>
-<div id="printSlip">
-  <h2>🌿 Green Cucina</h2>
-  <div class="ps-sub">Farm-to-table Café, Kota, Rajasthan</div>
-  <hr class="ps-divider"/>
-  <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
-  <div class="ps-meta"><strong>Table No:</strong> <span id="psTable"></span></div>
-  <div class="ps-meta"><strong>Phone:</strong> <span id="psPhone"></span></div>
-  <div class="ps-meta"><strong>Date:</strong> <span id="psDate"></span></div>
-  <div class="ps-meta"><strong>Time:</strong> <span id="psTime"></span></div>
-  <div class="ps-meta"><strong>Status:</strong> <span id="psStatus"></span></div>
-  <hr class="ps-divider"/>
-  <div id="psItems"></div>
-  <hr class="ps-divider"/>
-  <div class="ps-row ps-total"><span>Total</span><span id="psTotal"></span></div>
-  <div class="ps-row"><span id="psNote"></span></div>
-  <hr class="ps-divider"/>
-  <div class="ps-foot">Payment at counter · Thank you 🌿</div>
-</div>
+
 <audio id="bellAudio" src="bell.mp3" preload="auto"></audio>
 <div class="toast-container" id="toastContainer"></div>
 
@@ -1128,6 +1121,7 @@ function renderOrderCard(order) {
           <div class="order-table">📍 Table ${order.table_no}</div>
           <div class="order-time">📅 ${date} &nbsp;⏱ ${time}</div>
 <div class="order-time">📞 ${order.phone_no || 'N/A'}</div>
+${order.email ? `<div class="order-time" style="color:#42a5f5;">📧 ${order.email}</div>` : ''}
         </div>
         ${statusBadge}
       </div>
@@ -1227,6 +1221,7 @@ function printOrder(orderId) {
   document.getElementById('psOrderId').textContent = order.order_id;
   document.getElementById('psTable').textContent = order.table_no;
   document.getElementById('psPhone').textContent = order.phone_no || 'N/A';
+  document.getElementById('psEmail').textContent = order.email || '';
   document.getElementById('psDate').textContent = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('psTime').textContent = dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
   document.getElementById('psStatus').textContent = order.status.toUpperCase();
@@ -1331,5 +1326,25 @@ async function requestNotifPermission() {
 }
 </script>
 </div><!-- end #appShell -->
+
+<div id="printSlip">
+  <h2>🌿 Green Cucina</h2>
+  <div class="ps-sub">Farm-to-table Café, Kota, Rajasthan</div>
+  <hr class="ps-divider"/>
+  <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
+  <div class="ps-meta"><strong>Table No:</strong> <span id="psTable"></span></div>
+  <div class="ps-meta"><strong>Phone:</strong> <span id="psPhone"></span></div>
+  <div class="ps-meta" id="psEmailRow"><strong>Email:</strong> <span id="psEmail"></span></div>
+  <div class="ps-meta"><strong>Date:</strong> <span id="psDate"></span></div>
+  <div class="ps-meta"><strong>Time:</strong> <span id="psTime"></span></div>
+  <div class="ps-meta"><strong>Status:</strong> <span id="psStatus"></span></div>
+  <hr class="ps-divider"/>
+  <div id="psItems"></div>
+  <hr class="ps-divider"/>
+  <div class="ps-row ps-total"><span>Total</span><span id="psTotal"></span></div>
+  <div class="ps-row"><span id="psNote"></span></div>
+  <hr class="ps-divider"/>
+  <div class="ps-foot">Payment at counter · Thank you 🌿</div>
+</div>
 </body>
 </html>
