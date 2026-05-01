@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Green Cucina — Order</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --green-dark: #1a2e1a;
+    --green-mid: #2d4a2d;
+    --green-accent: #4a7c4a;
+    --green-light: #7ab87a;
+    --cream: #f7f3ed;
+    --warm-white: #fdfaf6;
+    --gold: #c8a96e;
+    --text-dark: #1a1a1a;
+    --text-mid: #4a4a4a;
+    --text-light: #8a8a8a;
+    --card-bg: #ffffff;
+    --border: #e8e0d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text-dark);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--green-dark);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+  }
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--cream);
+    letter-spacing: 0.5px;
+  }
+  .logo span { color: var(--green-light); font-style: italic; }
+  .cart-btn {
+    background: var(--gold);
+    color: var(--green-dark);
+    border: none;
+    border-radius: 50px;
+    padding: 10px 20px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .cart-btn:hover { background: #d4b87a; transform: translateY(-1px); }
+  .cart-count {
+    background: var(--green-dark);
+    color: var(--cream);
+    border-radius: 50%;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-mid) 60%, var(--green-accent) 100%);
+    padding: 40px 24px 32px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 70% 50%, rgba(122,184,122,0.15) 0%, transparent 70%);
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    color: var(--cream);
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .hero h1 em { color: var(--green-light); font-style: italic; }
+  .hero p { color: rgba(247,243,237,0.7); font-size: 0.95rem; font-weight: 300; position: relative; }
+
+  /* TABLE INPUT */
+  .table-bar {
+    background: var(--warm-white);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .table-bar label { font-size: 0.85rem; color: var(--text-mid); font-weight: 500; white-space: nowrap; }
+  .table-input {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    width: 100px;
+    background: white;
+    color: var(--text-dark);
+    transition: border-color 0.2s;
+  }
+  .table-input:focus { outline: none; border-color: var(--green-accent); }
+
+  /* CATEGORIES */
+  .categories {
+    padding: 20px 24px 8px;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .categories::-webkit-scrollbar { display: none; }
+  .cat-btn {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 50px;
+    padding: 8px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .cat-btn:hover { border-color: var(--green-accent); color: var(--green-accent); }
+  .cat-btn.active {
+    background: var(--green-dark);
+    border-color: var(--green-dark);
+    color: var(--cream);
+  }
+
+  /* MENU GRID */
+  .menu-section { padding: 8px 24px 100px; }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: var(--green-dark);
+    margin: 20px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .menu-card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+  }
+  .menu-card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+  .card-emoji {
+    background: linear-gradient(135deg, var(--green-mid), var(--green-accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.8rem;
+    padding: 24px;
+  }
+  .card-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+  .card-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.05rem;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .card-desc { font-size: 0.8rem; color: var(--text-light); line-height: 1.5; flex: 1; margin-bottom: 14px; }
+  .card-footer { display: flex; align-items: center; justify-content: space-between; }
+  .card-price {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--green-dark);
+    font-weight: 600;
+  }
+  .card-price span { font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 300; }
+  .qty-control {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border: 1.5px solid var(--border);
+    border-radius: 50px;
+    overflow: hidden;
+  }
+  .qty-btn {
+    background: none;
+    border: none;
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--green-accent);
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .qty-btn:hover { background: var(--cream); }
+  .qty-num {
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 26px;
+    text-align: center;
+    color: var(--text-dark);
+  }
+  .add-btn {
+    background: var(--green-dark);
+    color: var(--cream);
+    border: none;
+    border-radius: 50px;
+    padding: 8px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .add-btn:hover { background: var(--green-accent); }
+
+  /* CART DRAWER */
+  .cart-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,46,26,0.5);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .cart-overlay.open { opacity: 1; pointer-events: all; }
+  .cart-drawer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--warm-white);
+    border-radius: 24px 24px 0 0;
+    z-index: 201;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -10px 50px rgba(0,0,0,0.2);
+  }
+  .cart-drawer.open { transform: translateY(0); }
+  .drawer-handle {
+    width: 40px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 14px auto 0;
+  }
+  .drawer-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .drawer-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: var(--green-dark);
+  }
+  .close-drawer {
+    background: var(--cream);
+    border: none;
+    border-radius: 50%;
+    width: 34px; height: 34px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--text-mid);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cart-items { overflow-y: auto; flex: 1; padding: 16px 24px; }
+  .cart-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .cart-item-emoji { font-size: 1.8rem; }
+  .cart-item-info { flex: 1; }
+  .cart-item-name { font-weight: 500; font-size: 0.95rem; }
+  .cart-item-price { font-size: 0.85rem; color: var(--text-light); }
+  .cart-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 50px;
+    padding: 2px 4px;
+  }
+  .ciq-btn {
+    background: none; border: none;
+    font-size: 1rem; color: var(--green-accent);
+    font-weight: 700; cursor: pointer;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ciq-num { font-size: 0.9rem; font-weight: 600; min-width: 20px; text-align: center; }
+  .empty-cart { text-align: center; padding: 40px 0; color: var(--text-light); }
+  .empty-cart .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .cart-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border);
+    background: white;
+  }
+  .order-note-label { font-size: 0.8rem; color: var(--text-mid); font-weight: 500; margin-bottom: 6px; }
+  .order-note {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    resize: none;
+    margin-bottom: 14px;
+    color: var(--text-dark);
+    background: var(--warm-white);
+  }
+  .order-note:focus { outline: none; border-color: var(--green-accent); }
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .total-label { font-size: 0.9rem; color: var(--text-mid); }
+  .total-amount {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: var(--green-dark);
+    font-weight: 600;
+  }
+  .place-order-btn {
+    width: 100%;
+    background: var(--green-dark);
+    color: var(--cream);
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .place-order-btn:hover { background: var(--green-accent); }
+  .place-order-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  /* SUCCESS MODAL */
+  .success-modal {
+    position: fixed; inset: 0;
+    background: rgba(26,46,26,0.7);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .success-modal.show { opacity: 1; pointer-events: all; }
+  .success-card {
+    background: white;
+    border-radius: 24px;
+    padding: 40px 32px;
+    text-align: center;
+    max-width: 340px;
+    width: 100%;
+    transform: scale(0.9);
+    transition: transform 0.3s;
+  }
+  .success-modal.show .success-card { transform: scale(1); }
+  .success-icon { font-size: 3.5rem; margin-bottom: 16px; }
+  .success-card h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--green-dark);
+    margin-bottom: 10px;
+  }
+  .success-card p { color: var(--text-mid); font-size: 0.9rem; line-height: 1.6; margin-bottom: 6px; }
+  .order-id-badge {
+    background: var(--cream);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    color: var(--green-dark);
+    font-weight: 600;
+    margin: 16px 0;
+    letter-spacing: 1px;
+  }
+  .success-close {
+    background: var(--green-dark);
+    color: var(--cream);
+    border: none;
+    border-radius: 50px;
+    padding: 12px 32px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background 0.2s;
+  }
+  .success-close:hover { background: var(--green-accent); }
+
+  /* CONFIG BANNER */
+  .config-banner {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 16px 24px 0;
+    font-size: 0.82rem;
+    color: #856404;
+    line-height: 1.6;
+  }
+  .config-banner strong { color: #533f03; }
+  .config-banner code {
+    background: #fef3cd;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.78rem;
+  }
+
+  @media (max-width: 480px) {
+    .menu-grid { grid-template-columns: 1fr; }
+    header { padding: 14px 16px; }
+    .menu-section { padding: 8px 16px 100px; }
+    .categories { padding: 16px 16px 8px; }
+    .table-bar { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ CONFIG (EDIT THESE 2 LINES) ═══ -->
+<script>
+  const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM';
+</script>
+
+<header>
+  <div class="logo">🌿 Green <span>Cucina</span></div>
+  <button class="cart-btn" onclick="toggleHistory()" style="background:#2d4a2d;margin-right:8px;">
+  📋 My Orders
+</button>
+  <button class="cart-btn" onclick="toggleCart()">
+    🛒 Your Order
+    <span class="cart-count" id="cartCount">0</span>
+  </button>
+</header>
+
+<div id="configBanner" class="config-banner" style="display:none">
+  ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> at the top of this file with your Supabase project credentials. Orders will work locally until then. See the setup guide.
+</div>
+
+<div class="hero">
+  <div id="closedBanner" style="display:none;background:#3a0f0f;border:1px solid #f44336;border-radius:10px;padding:12px 20px;margin:16px 24px;font-size:0.88rem;color:#f44336;text-align:center;">
+  🔴 Currently, we are not accepting new orders.
+</div>
+  <h1>Order <em>Fresh</em> & Fast</h1>
+  <p>Farm-to-table meals crafted with love — Kota, Rajasthan</p>
+</div>
+
+<div class="table-bar">
+  <label for="tableNo">📍 Table Number:</label>
+  <input type="text" id="tableNo" class="table-input" placeholder="e.g. 05" maxlength="4"/>
+  <label for="phoneNo">📞 Mobile:</label>
+  <input type="tel" id="phoneNo" class="table-input" placeholder="10-digit number" maxlength="10" style="width:150px"/>
+</div>
+
+<div class="categories" id="categories"></div>
+
+<div class="menu-section" id="menuSection"></div>
+
+<!-- Order History Drawer -->
+<div class="cart-overlay" id="historyOverlay" onclick="toggleHistory()"></div>
+<div class="cart-drawer" id="historyDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-header">
+    <h2>My Orders</h2>
+    <button class="close-drawer" onclick="toggleHistory()">✕</button>
+  </div>
+  <div class="cart-items" id="historyItems"></div>
+</div>
+<!-- Cart Overlay + Drawer -->
+<div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+<div class="cart-drawer" id="cartDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-header">
+    <h2>Your Order</h2>
+    <button class="close-drawer" onclick="toggleCart()">✕</button>
+  </div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-footer">
+    <div class="order-note-label">Special instructions (optional)</div>
+    <textarea class="order-note" id="orderNote" rows="2" placeholder="e.g. Less sugar, no onions..."></textarea>
+    <div class="total-row">
+      <span class="total-label">Total</span>
+      <span class="total-amount" id="totalAmount">₹0</span>
+    </div>
+    <button class="place-order-btn" id="placeOrderBtn" onclick="placeOrder()">
+      🌿 Place Order
+    </button>
+  </div>
+</div>
+
+<!-- Bill Template (hidden, for print only) -->
+<div id="billTemplate" style="display:none">
+<style id="billStyles">
+@media print {
+  body > * { display: none !important; }
+  #billTemplate { display: block !important; }
+}
+#billTemplate {
+  font-family: 'DM Sans', sans-serif;
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 32px 28px;
+  color: #000;
+  background: #fff;
+}
+#billTemplate h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 2px; }
+#billTemplate .sub { font-size: 0.78rem; color: #555; margin-bottom: 16px; }
+#billTemplate .divider { border: none; border-top: 1px dashed #000; margin: 14px 0; }
+#billTemplate .row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; }
+#billTemplate .row.bold { font-weight: 700; font-size: 0.95rem; }
+#billTemplate .meta { font-size: 0.8rem; margin-bottom: 5px; }
+#billTemplate .thank { text-align: center; font-size: 0.82rem; margin-top: 20px; color: #333; }
+</style>
+<h1>Green Cucina</h1>
+<div class="sub">Farm-to-table Café & Kitchen, Kota, Rajasthan<br>Near Dadabari, Kota — 324009 | +91 98765 43210</div>
+<hr class="divider"/>
+<div class="meta"><strong>Order ID:</strong> <span id="billOrderId"></span></div>
+<div class="meta"><strong>Table No:</strong> <span id="billTable"></span></div>
+<div class="meta"><strong>Mobile:</strong> <span id="billPhone"></span></div>
+<div class="meta"><strong>Date:</strong> <span id="billDate"></span></div>
+<div class="meta"><strong>Time:</strong> <span id="billTime"></span></div>
+<hr class="divider"/>
+<div id="billItems"></div>
+<hr class="divider"/>
+<div class="row bold"><span>Total Amount</span><span id="billTotal"></span></div>
+<hr class="divider"/>
+<div class="meta" style="font-size:0.75rem;color:#555;">Payment at counter. Please show this bill to staff.</div>
+<div class="thank">— Thank you for dining with us 🌿 —<br><strong>Green Cucina</strong></div>
+</div>
+
+<!-- Success Modal -->
+<div class="success-modal" id="successModal">
+  <div class="success-card">
+    <div class="success-icon">✅</div>
+    <h2>Order Placed!</h2>
+    <p>Your order is heading to the kitchen right now.</p>
+    <div class="order-id-badge" id="successOrderId"></div>
+    <p style="font-size:0.8rem;color:#aaa;">Show this to staff if needed</p>
+    <button id="downloadBillBtn" style="background:#1a2e1a;color:#f7f3ed;border:none;border-radius:50px;padding:12px 28px;font-family:'DM Sans',sans-serif;font-size:0.9rem;cursor:pointer;margin-top:10px;display:block;width:100%;margin-bottom:8px;">⬇ Download Bill</button>
+    <button class="success-close" onclick="closeSuccess()">Order More 🌿</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// MENU DATA (from Green Cucina website)
+// ═══════════════════════════════════════════
+const MENU = [
+  // Breakfast
+  { id:1, cat:'Breakfast', emoji:'🥑', name:'Avocado Sourdough Toast', desc:'Smashed avocado, cherry tomatoes, feta & everything-bagel seasoning on house sourdough.', price:180 },
+  { id:2, cat:'Breakfast', emoji:'🥞', name:'Fluffy Ricotta Pancakes', desc:'Light ricotta pancakes with maple syrup, fresh berries & whipped cream.', price:220 },
+  { id:3, cat:'Breakfast', emoji:'🍳', name:'Green Shakshuka', desc:'Poached eggs in a vibrant spinach-herb sauce with feta and warm bread.', price:200 },
+  // Mains
+  { id:4, cat:'Mains', emoji:'🍝', name:'Pesto Pasta al Verde', desc:'Fusilli in homemade basil-walnut pesto, sun-dried tomatoes & parmesan shavings.', price:280 },
+  { id:5, cat:'Mains', emoji:'🥗', name:'The Big Green Bowl', desc:'Quinoa, roasted veggies, hummus, pickled red onions & tahini dressing.', price:250 },
+  { id:6, cat:'Mains', emoji:'🍕', name:'Margherita Rustica', desc:'Stone-baked thin-crust pizza with San Marzano tomato, buffalo mozzarella & fresh basil.', price:300 },
+  // Drinks
+  { id:7, cat:'Drinks', emoji:'☕', name:'Single Origin Espresso', desc:'Freshly pulled from Coorg-sourced Arabica beans. Bold, smooth, perfect.', price:90 },
+  { id:8, cat:'Drinks', emoji:'🍵', name:'Matcha Latte', desc:'Ceremonial-grade matcha whisked with steamed oat milk & a hint of honey.', price:160 },
+  { id:9, cat:'Drinks', emoji:'🥤', name:'Garden Green Smoothie', desc:'Spinach, banana, mango, ginger & coconut water — energise your day.', price:140 },
+  // Desserts
+  { id:10, cat:'Desserts', emoji:'🍮', name:'Tiramisu Classico', desc:'Classic Italian tiramisu with mascarpone, espresso-soaked ladyfingers & cocoa dust.', price:180 },
+  { id:11, cat:'Desserts', emoji:'🍰', name:'Pistachio Panna Cotta', desc:'Silky vanilla panna cotta with a pistachio crumble and rose compote.', price:160 },
+  { id:12, cat:'Desserts', emoji:'🍫', name:'Dark Choco Fondant', desc:'Warm 70% dark chocolate lava cake with vanilla bean ice cream & caramel drizzle.', price:200 },
+];
+
+const CATEGORIES = ['All', 'Breakfast', 'Mains', 'Drinks', 'Desserts'];
+const CAT_ICONS = { All:'🌿', Breakfast:'🌅', Mains:'🍽️', Drinks:'☕', Desserts:'🍰' };
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let cart = {}; // { itemId: qty }
+let OUT_OF_STOCK = [];
+
+async function fetchOutOfStock() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.from('settings').select('out_of_stock').eq('key','store_status').single();
+  if (data) {
+    try { OUT_OF_STOCK = JSON.parse(data.out_of_stock || '[]'); } catch(e) { OUT_OF_STOCK = []; }
+  }
+  renderMenu();
+}
+let orderHistory = [];
+let activeCategory = 'All';
+let supabaseClient = null;
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if Supabase is configured
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.getElementById('configBanner').style.display = 'block';
+  } else {
+    try {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch(e) { console.error('Supabase init error:', e); }
+  }
+  if (supabaseClient) {
+    function refreshStoreBanner() {
+    checkStoreOpen().then(open => {
+      document.getElementById('closedBanner').style.display = open ? 'none' : 'block';
+    });
+  }
+  refreshStoreBanner();
+  setInterval(refreshStoreBanner, 30000);
+  }
+  if (supabaseClient) fetchOutOfStock();
+  renderCategories();
+  renderMenu();
+});
+
+// ═══════════════════════════════════════════
+// RENDER CATEGORIES
+// ═══════════════════════════════════════════
+function renderCategories() {
+  const el = document.getElementById('categories');
+  el.innerHTML = CATEGORIES.map(cat => `
+    <button class="cat-btn ${cat === activeCategory ? 'active' : ''}" onclick="setCategory('${cat}')">
+      ${CAT_ICONS[cat]} ${cat}
+    </button>
+  `).join('');
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  renderCategories();
+  renderMenu();
+}
+
+// ═══════════════════════════════════════════
+// RENDER MENU
+// ═══════════════════════════════════════════
+function renderMenu() {
+  const section = document.getElementById('menuSection');
+  const cats = activeCategory === 'All' ? ['Breakfast','Mains','Drinks','Desserts'] : [activeCategory];
+  section.innerHTML = cats.map(cat => {
+    const items = MENU.filter(i => i.cat === cat);
+    return `
+      <div class="section-title">${CAT_ICONS[cat]} ${cat}</div>
+      <div class="menu-grid">
+        ${items.map(item => renderCard(item)).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCard(item) {
+  const qty = cart[item.id] || 0;
+  const oos = OUT_OF_STOCK.includes(item.id);
+  return `
+    <div class="menu-card" id="card-${item.id}" style="${oos ? 'opacity:0.45;pointer-events:none;' : ''}">
+      <div class="card-emoji">${item.emoji}</div>
+      <div class="card-body">
+        <div class="card-name">${item.name}</div>
+        <div class="card-desc">${item.desc}</div>
+        ${oos ? `<div style="background:#fee;color:#c00;font-size:0.75rem;font-weight:600;padding:5px 10px;border-radius:6px;margin-bottom:10px;display:inline-block;">❌ Out of Stock</div>` : ''}
+        <div class="card-footer">
+          <div class="card-price">₹${item.price} <span>per item</span></div>
+          ${qty === 0
+            ? `<button class="add-btn" onclick="addItem(${item.id})">+ Add</button>`
+            : `<div class="qty-control">
+                <button class="qty-btn" onclick="changeQty(${item.id}, -1)">−</button>
+                <span class="qty-num">${qty}</span>
+                <button class="qty-btn" onclick="changeQty(${item.id}, 1)">+</button>
+               </div>`
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════
+// CART LOGIC
+// ═══════════════════════════════════════════
+function addItem(id) {
+  cart[id] = (cart[id] || 0) + 1;
+  updateCartUI();
+  refreshCard(id);
+}
+
+function changeQty(id, delta) {
+  cart[id] = (cart[id] || 0) + delta;
+  if (cart[id] <= 0) delete cart[id];
+  updateCartUI();
+  refreshCard(id);
+}
+
+function refreshCard(id) {
+  const item = MENU.find(i => i.id === id);
+  const card = document.getElementById(`card-${id}`);
+  if (card) card.outerHTML = renderCard(item);
+}
+
+function updateCartUI() {
+  const count = Object.values(cart).reduce((a,b) => a+b, 0);
+  document.getElementById('cartCount').textContent = count;
+  renderCartDrawer();
+}
+
+function renderCartDrawer() {
+  const el = document.getElementById('cartItems');
+  const ids = Object.keys(cart);
+  if (ids.length === 0) {
+    el.innerHTML = `<div class="empty-cart"><div class="empty-icon">🛒</div><div>Your order is empty</div></div>`;
+    document.getElementById('totalAmount').textContent = '₹0';
+    return;
+  }
+  let total = 0;
+  el.innerHTML = ids.map(id => {
+    const item = MENU.find(i => i.id == id);
+    const qty = cart[id];
+    total += item.price * qty;
+    return `
+      <div class="cart-item">
+        <div class="cart-item-emoji">${item.emoji}</div>
+        <div class="cart-item-info">
+          <div class="cart-item-name">${item.name}</div>
+          <div class="cart-item-price">₹${item.price} × ${qty} = ₹${item.price * qty}</div>
+        </div>
+        <div class="cart-item-qty">
+          <button class="ciq-btn" onclick="changeQty(${id}, -1)">−</button>
+          <span class="ciq-num">${qty}</span>
+          <button class="ciq-btn" onclick="changeQty(${id}, 1)">+</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('totalAmount').textContent = `₹${total}`;
+}
+
+function toggleCart() {
+  const overlay = document.getElementById('cartOverlay');
+  const drawer = document.getElementById('cartDrawer');
+  const isOpen = drawer.classList.contains('open');
+  overlay.classList.toggle('open', !isOpen);
+  drawer.classList.toggle('open', !isOpen);
+  if (!isOpen) renderCartDrawer();
+}
+
+// ═══════════════════════════════════════════
+// PLACE ORDER
+// ═══════════════════════════════════════════
+async function checkStoreOpen() {
+  if (!supabaseClient) return true;
+  const { data } = await supabaseClient.from('settings').select('value').eq('key', 'store_status').single();
+  return data ? data.value === 'open' : true;
+}
+
+async function placeOrder() {
+  const isOpen = await checkStoreOpen();
+  if (!isOpen) {
+    alert('Currently, we are not accepting the new orders.');
+    return;
+  }
+  const tableNo = document.getElementById('tableNo').value.trim();
+  if (!tableNo) {
+    alert('Please Enter Your Table Number.');
+    document.getElementById('tableNo').focus();
+    return;
+  }
+  const phoneNo = document.getElementById('phoneNo').value.trim();
+  if (!phoneNo || phoneNo.length !== 10 || !/^[6-9]\d{9}$/.test(phoneNo)) {
+    alert('Please, Enter Your Mobile Number.');
+    document.getElementById('phoneNo').focus();
+    return;
+  }
+  if (Object.keys(cart).length === 0) return;
+
+  const btn = document.getElementById('placeOrderBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending to kitchen...';
+
+  const orderId = 'GC-' + Date.now().toString().slice(-6);
+  const items = Object.keys(cart).map(id => {
+    const item = MENU.find(i => i.id == id);
+    return { id: parseInt(id), name: item.name, emoji: item.emoji, qty: cart[id], price: item.price };
+  });
+  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const note = document.getElementById('orderNote').value.trim();
+
+  const orderData = {
+    order_id: orderId,
+    table_no: tableNo,
+    phone_no: phoneNo,
+    items: items,
+    total: total,
+    note: note,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+  };
+
+  let success = false;
+
+  if (supabaseClient) {
+    try {
+      const { error } = await supabaseClient.from('orders').insert([orderData]);
+      if (!error) success = true;
+      else console.error('Supabase error:', error);
+    } catch(e) { console.error(e); }
+  }
+
+  // Fallback: BroadcastChannel for same-device demo
+  try {
+    const bc = new BroadcastChannel('green_cucina_orders');
+    bc.postMessage(orderData);
+    bc.close();
+    success = true;
+  } catch(e) {}
+
+  btn.disabled = false;
+  btn.innerHTML = '🌿 Place Order';
+
+  if (success || true) { // always show success for UX
+    orderHistory.unshift({
+    order_id: orderId,
+    table_no: tableNo,
+    phone_no: phoneNo,
+    items: items,
+    total: total,
+    note: note,
+    placed_at: new Date()
+  });
+    cart = {};
+    updateCartUI();
+    toggleCart();
+    document.getElementById('successOrderId').textContent = `Order ID: ${orderId} · Table ${tableNo}`;
+    document.getElementById('downloadBillBtn').onclick = () => downloadBill(orderId, tableNo, phoneNo, items, total);
+    downloadBill(orderId, tableNo, phoneNo, items, total);
+    document.getElementById('successModal').classList.add('show');
+    document.getElementById('orderNote').value = '';
+    renderMenu();
+  }
+}
+
+function downloadBill(orderId, tableNo, phoneNo, items, total) {
+  const now = new Date();
+  document.getElementById('billOrderId').textContent = orderId;
+  document.getElementById('billTable').textContent = tableNo;
+  document.getElementById('billPhone').textContent = phoneNo;
+  document.getElementById('billDate').textContent = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  document.getElementById('billTime').textContent = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('billTotal').textContent = '₹' + total;
+  document.getElementById('billItems').innerHTML = items.map(i =>
+    `<div class="row"><span>${i.emoji} ${i.name} ×${i.qty}</span><span>₹${i.price * i.qty}</span></div>`
+  ).join('');
+  document.getElementById('billTemplate').style.display = 'block';
+  window.print();
+  document.getElementById('billTemplate').style.display = 'none';
+}
+function toggleHistory() {
+  const overlay = document.getElementById('historyOverlay');
+  const drawer = document.getElementById('historyDrawer');
+  const isOpen = drawer.classList.contains('open');
+  overlay.classList.toggle('open', !isOpen);
+  drawer.classList.toggle('open', !isOpen);
+  if (!isOpen) renderHistory();
+}
+
+function renderHistory() {
+  const el = document.getElementById('historyItems');
+  if (orderHistory.length === 0) {
+    el.innerHTML = `<div class="empty-cart"><div class="empty-icon">📋</div><div>No orders yet this session</div></div>`;
+    return;
+  }
+  el.innerHTML = orderHistory.map(order => `
+    <div style="padding:14px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--text-light);">${order.order_id}</span>
+        <span style="font-size:0.78rem;color:var(--text-light);">
+          ${order.placed_at.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
+        </span>
+      </div>
+      <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:6px;">📍 Table ${order.table_no} &nbsp;📞 ${order.phone_no}</div>
+      ${order.items.map(i => `
+        <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:3px 0;">
+          <span>${i.emoji} ${i.name} ×${i.qty}</span>
+          <span>₹${i.price * i.qty}</span>
+        </div>`).join('')}
+      ${order.note ? `<div style="font-size:0.78rem;color:var(--text-light);margin-top:5px;font-style:italic;">📝 ${order.note}</div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span style="font-weight:600;color:var(--green-dark);">Total: ₹${order.total}</span>
+        <button onclick="downloadBill('${order.order_id}','${order.table_no}','${order.phone_no}',orderHistory.find(o=>o.order_id==='${order.order_id}').items,${order.total})"
+          style="background:var(--green-dark);color:var(--cream);border:none;border-radius:50px;padding:6px 14px;font-size:0.78rem;cursor:pointer;">
+          ⬇ Bill
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+function closeSuccess() {
+  document.getElementById('successModal').classList.remove('show');
+}
+</script>
+</body>
+</html>

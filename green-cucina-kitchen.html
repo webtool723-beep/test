@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Green Cucina — Kitchen Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Firebase Auth -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, sendEmailVerification, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  // ══════════════════════════════════════════════
+  // 🔥 FIREBASE CONFIG — replace with YOUR values
+  // ══════════════════════════════════════════════
+  const firebaseConfig = {
+    apiKey:            "YOUR_API_KEY",
+    authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId:         "YOUR_PROJECT_ID",
+    storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId:             "YOUR_APP_ID"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // ── expose helpers to global scope ──
+  window._firebaseAuth = auth;
+  window._fbSignIn = (email, password) => signInWithEmailAndPassword(auth, email, password);
+  window._fbSignOut = () => signOut(auth);
+  window._fbSendVerification = (user) => sendEmailVerification(user);
+  window._fbPasswordReset = (email) => sendPasswordResetEmail(auth, email);
+
+  // ── Auth state gate ──
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      if (user.emailVerified) {
+        document.getElementById('authOverlay').style.display = 'none';
+        document.getElementById('appShell').style.display    = 'block';
+        document.getElementById('authUserEmail').textContent = user.email;
+        // Now kick off the app
+        if (typeof window.appInit === 'function') window.appInit();
+      } else {
+        // Signed in but email not verified
+        showVerifyScreen(user);
+      }
+    } else {
+      showLoginScreen();
+    }
+  });
+
+  function showLoginScreen() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'block';
+    document.getElementById('verifyBox').style.display   = 'none';
+  }
+
+  function showVerifyScreen(user) {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'none';
+    document.getElementById('verifyBox').style.display   = 'block';
+    document.getElementById('verifyEmail').textContent   = user.email;
+  }
+
+  // ── Login form handler ──
+  window.handleLogin = async function() {
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl    = document.getElementById('loginError');
+    const btn      = document.getElementById('loginBtn');
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const cred = await window._fbSignIn(email, password);
+      if (!cred.user.emailVerified) {
+        await window._fbSendVerification(cred.user);
+        showVerifyScreen(cred.user);
+      }
+      // onAuthStateChanged will handle the rest
+    } catch (e) {
+      errEl.textContent = friendlyError(e.code);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+  };
+
+  // ── Resend verification ──
+  window.resendVerification = async function() {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await window._fbSendVerification(user);
+      document.getElementById('verifyMsg').textContent = '✅ Verification email resent! Check your inbox.';
+    } catch(e) {
+      document.getElementById('verifyMsg').textContent = '⚠️ ' + friendlyError(e.code);
+    }
+  };
+
+  // ── Reload after verifying ──
+  window.checkVerified = async function() {
+    const user = auth.currentUser;
+    if (!user) return;
+    await user.reload();
+    if (user.emailVerified) {
+      document.getElementById('authOverlay').style.display = 'none';
+      document.getElementById('appShell').style.display    = 'block';
+      document.getElementById('authUserEmail').textContent = user.email;
+      if (typeof window.appInit === 'function') window.appInit();
+    } else {
+      document.getElementById('verifyMsg').textContent = '⚠️ Email not verified yet. Please check your inbox.';
+    }
+  };
+
+  // ── Forgot password ──
+  window.handleForgotPassword = async function() {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) { document.getElementById('loginError').textContent = 'Enter your email first.'; return; }
+    try {
+      await window._fbPasswordReset(email);
+      document.getElementById('loginError').style.color = '#66bb6a';
+      document.getElementById('loginError').textContent = '✅ Password reset email sent!';
+    } catch(e) {
+      document.getElementById('loginError').style.color = '#f44336';
+      document.getElementById('loginError').textContent = friendlyError(e.code);
+    }
+  };
+
+  // ── Sign out ──
+  window.handleSignOut = async function() {
+    await window._fbSignOut();
+  };
+
+  function friendlyError(code) {
+    const map = {
+      'auth/user-not-found':       'No account found with this email.',
+      'auth/wrong-password':       'Incorrect password.',
+      'auth/invalid-email':        'Invalid email address.',
+      'auth/too-many-requests':    'Too many attempts. Please wait a moment.',
+      'auth/invalid-credential':   'Invalid email or password.',
+      'auth/network-request-failed': 'Network error. Check your internet.',
+    };
+    return map[code] || 'Something went wrong. Please try again.';
+  }
+</script>
+<style>
+  :root {
+    --bg: #0f1a0f;
+    --surface: #162016;
+    --surface2: #1e2e1e;
+    --border: #2a3d2a;
+    --green-accent: #4caf50;
+    --green-bright: #66bb6a;
+    --green-dim: #2d5a2d;
+    --gold: #ffc107;
+    --gold-dim: #3a2f00;
+    --red: #f44336;
+    --red-dim: #3a0f0f;
+    --blue: #42a5f5;
+    --blue-dim: #0d2a3a;
+    --text: #e8f5e9;
+    --text-mid: #81c784;
+    --text-dim: #4a6b4a;
+    --pending: #ffc107;
+    --preparing: #42a5f5;
+    --done: #66bb6a;
+    --rejected: #f44336;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: var(--text);
+  }
+  .logo span { color: var(--green-bright); font-style: italic; }
+  .logo small {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .live-dot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-mid);
+  }
+  .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--green-accent);
+    box-shadow: 0 0 0 0 rgba(76,175,80,0.4);
+    animation: pulse 2s infinite;
+  }
+  .dot.offline { background: var(--red); animation: none; box-shadow: none; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(76,175,80,0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(76,175,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(76,175,80,0); }
+  }
+  .time-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+  .notif-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--text-mid);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .notif-btn:hover { border-color: var(--green-accent); color: var(--green-bright); }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .stats-bar::-webkit-scrollbar { display: none; }
+  .stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    white-space: nowrap;
+    transition: border-color 0.2s;
+  }
+  .stat-chip.clickable { cursor: pointer; }
+  .stat-chip.clickable:hover { border-color: var(--green-accent); }
+  .stat-chip.active-filter { border-color: var(--green-accent); background: var(--green-dim); }
+  .stat-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .stat-label { font-size: 0.78rem; color: var(--text-dim); }
+  .stat-num { font-size: 1rem; font-weight: 600; font-family: 'DM Mono', monospace; }
+
+  /* CONFIG BANNER */
+  .config-banner {
+    background: #1a1500;
+    border: 1px solid #ffc10740;
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin: 16px 24px 0;
+    font-size: 0.82rem;
+    color: #ffc107;
+    line-height: 1.7;
+  }
+  .config-banner code {
+    background: #ffc10715;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.78rem;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* FILTER TABS */
+  .filter-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 16px 24px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .ftab {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .ftab:hover { border-color: var(--green-accent); color: var(--text-mid); }
+  .ftab.active { background: var(--green-dim); border-color: var(--green-accent); color: var(--green-bright); }
+
+  /* ORDERS GRID */
+  .orders-container { padding: 16px 24px 40px; }
+  .empty-state {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--text-dim);
+  }
+  .empty-icon { font-size: 3.5rem; margin-bottom: 16px; filter: grayscale(1) opacity(0.4); }
+  .empty-text { font-size: 1rem; margin-bottom: 6px; }
+  .empty-sub { font-size: 0.85rem; color: var(--text-dim); }
+  .orders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  /* ORDER CARD */
+  .order-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    animation: slideIn 0.35s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .order-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+  .order-card.status-pending { border-left: 3px solid var(--pending); }
+  .order-card.status-preparing { border-left: 3px solid var(--preparing); }
+  .order-card.status-done { border-left: 3px solid var(--done); opacity: 0.75; }
+  .order-card.status-rejected { border-left: 3px solid var(--rejected); opacity: 0.6; }
+
+  .card-header {
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .order-meta { flex: 1; }
+  .order-id {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .order-table {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .order-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge-pending { background: var(--gold-dim); color: var(--gold); }
+  .badge-preparing { background: var(--blue-dim); color: var(--blue); }
+  .badge-done { background: var(--green-dim); color: var(--done); }
+  .badge-rejected { background: var(--red-dim); color: var(--red); }
+
+  .card-items { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .order-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 0.88rem;
+  }
+  .item-emoji { font-size: 1rem; }
+  .item-name { flex: 1; color: var(--text); }
+  .item-qty {
+    background: var(--surface2);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text-mid);
+  }
+  .order-note-text {
+    padding: 0 16px 12px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-style: italic;
+    border-bottom: 1px solid var(--border);
+  }
+  .order-note-text span { color: var(--gold); }
+
+  .card-footer {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .order-total {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--green-bright);
+    font-weight: 500;
+  }
+  .action-btns { display: flex; gap: 8px; }
+  .action-btn {
+    border: 1px solid;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: none;
+  }
+  .btn-accept { border-color: #4caf5060; color: var(--green-accent); }
+  .btn-accept:hover { background: var(--green-dim); border-color: var(--green-accent); }
+  .btn-preparing { border-color: #42a5f560; color: var(--blue); }
+  .btn-preparing:hover { background: var(--blue-dim); border-color: var(--blue); }
+  .btn-done { border-color: #66bb6a60; color: var(--done); }
+  .btn-done:hover { background: var(--green-dim); border-color: var(--done); }
+  .btn-reject { border-color: #f4433640; color: #e57373; }
+  .btn-reject:hover { background: var(--red-dim); border-color: var(--red); }
+
+  /* TOAST */
+  .toast-container {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    min-width: 280px;
+    max-width: 340px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    animation: toastIn 0.3s ease;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    pointer-events: all;
+  }
+  .toast.new-order { border-left: 3px solid var(--gold); }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .toast-icon { font-size: 1.4rem; }
+  .toast-body {}
+  .toast-title { font-size: 0.88rem; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .toast-msg { font-size: 0.8rem; color: var(--text-dim); }
+
+  /* NEW ORDER PULSE */
+  .new-order-banner {
+    display: none;
+    background: linear-gradient(90deg, var(--gold-dim), transparent);
+    border: 1px solid var(--gold);
+    border-radius: 10px;
+    padding: 12px 20px;
+    margin: 12px 24px 0;
+    font-size: 0.88rem;
+    color: var(--gold);
+    align-items: center;
+    gap: 10px;
+    animation: bannerPulse 1.5s ease-in-out 3;
+  }
+  .new-order-banner.show { display: flex; }
+  @keyframes bannerPulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.6; }
+  }
+
+  @media (max-width: 600px) {
+    .orders-grid { grid-template-columns: 1fr; }
+    header { padding: 12px 16px; }
+    .stats-bar, .filter-tabs, .orders-container { padding-left: 16px; padding-right: 16px; }
+  }
+
+  @media print {
+  body > * { display: none !important; }
+  #printSlip { display: block !important; }
+}
+#printSlip {
+  display: none;
+  font-family: 'DM Sans', sans-serif;
+  max-width: 300px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  color: #000;
+  background: #fff;
+}
+#printSlip h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 2px; }
+#printSlip .ps-sub { font-size: 0.75rem; color: #555; margin-bottom: 14px; }
+#printSlip .ps-divider { border: none; border-top: 1px dashed #000; margin: 10px 0; }
+#printSlip .ps-row { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 5px; }
+#printSlip .ps-meta { font-size: 0.78rem; margin-bottom: 4px; }
+#printSlip .ps-total { font-weight: 700; font-size: 0.95rem; }
+#printSlip .ps-foot { text-align: center; font-size: 0.75rem; color: #555; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ CONFIG (SAME AS ORDER PAGE) ═══ -->
+<script>
+  const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM';
+</script>
+
+<!-- ══════════════════════════════════════════════
+     AUTH OVERLAY  (shown while not logged in)
+     ══════════════════════════════════════════════ -->
+<div id="authOverlay" style="
+  display:flex; align-items:center; justify-content:center;
+  position:fixed; inset:0; z-index:9999;
+  background:linear-gradient(135deg,#0a120a 0%,#0f1a0f 60%,#122012 100%);
+  font-family:'DM Sans',sans-serif;">
+
+  <!-- LOGIN BOX -->
+  <div id="loginBox" style="
+    background:#162016; border:1px solid #2a3d2a; border-radius:20px;
+    padding:40px 36px; width:100%; max-width:400px; margin:24px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:2.5rem;margin-bottom:8px;">🌿</div>
+      <div style="font-family:'Playfair Display',serif;font-size:1.6rem;color:#e8f5e9;">Green <em style='color:#66bb6a;font-style:italic;'>Cucina</em></div>
+      <div style="font-size:0.75rem;color:#4a6b4a;letter-spacing:1px;text-transform:uppercase;margin-top:4px;">Kitchen Dashboard</div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="font-size:0.75rem;color:#81c784;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Email</label>
+      <input id="loginEmail" type="email" placeholder="you@greencucina.com"
+        onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()"
+        style="width:100%;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:10px;padding:12px 14px;color:#e8f5e9;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none;"
+        onfocus="this.style.borderColor='#4caf50'" onblur="this.style.borderColor='#2a3d2a'"/>
+    </div>
+
+    <div style="margin-bottom:8px;">
+      <label style="font-size:0.75rem;color:#81c784;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Password</label>
+      <input id="loginPassword" type="password" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')handleLogin()"
+        style="width:100%;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:10px;padding:12px 14px;color:#e8f5e9;font-family:'DM Sans',sans-serif;font-size:0.9rem;outline:none;"
+        onfocus="this.style.borderColor='#4caf50'" onblur="this.style.borderColor='#2a3d2a'"/>
+    </div>
+
+    <div style="text-align:right;margin-bottom:20px;">
+      <button onclick="handleForgotPassword()"
+        style="background:none;border:none;color:#4a6b4a;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        Forgot password?
+      </button>
+    </div>
+
+    <div id="loginError" style="font-size:0.82rem;text-align:center;min-height:20px;margin-bottom:12px;color:#f44336;"></div>
+
+    <button id="loginBtn" onclick="handleLogin()" style="
+      width:100%;background:#2d5a2d;border:1px solid #4caf50;border-radius:12px;
+      padding:13px;color:#66bb6a;font-family:'DM Sans',sans-serif;font-weight:600;
+      font-size:0.95rem;cursor:pointer;"
+      onmouseover="this.style.background='#3a6e3a'" onmouseout="this.style.background='#2d5a2d'">
+      Sign In
+    </button>
+
+    <div style="margin-top:20px;padding:14px;background:#1a1500;border:1px solid #ffc10730;border-radius:10px;font-size:0.78rem;color:#ffc107;line-height:1.6;">
+      🔒 Only verified email accounts can access the dashboard.
+    </div>
+  </div>
+
+  <!-- VERIFY BOX -->
+  <div id="verifyBox" style="display:none;
+    background:#162016; border:1px solid #2a3d2a; border-radius:20px;
+    padding:40px 36px; width:100%; max-width:400px; margin:24px; text-align:center;">
+    <div style="font-size:3rem;margin-bottom:16px;">📧</div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.3rem;color:#e8f5e9;margin-bottom:8px;">Verify Your Email</div>
+    <div style="font-size:0.85rem;color:#81c784;margin-bottom:6px;">We sent a link to:</div>
+    <div id="verifyEmail" style="font-family:'DM Mono',monospace;font-size:0.85rem;color:#ffc107;margin-bottom:20px;word-break:break-all;"></div>
+    <div style="font-size:0.82rem;color:#4a6b4a;margin-bottom:24px;line-height:1.6;">
+      Click the link in the email, then press <strong style="color:#81c784;">I've Verified</strong>.
+    </div>
+    <button onclick="checkVerified()" style="
+      width:100%;background:#2d5a2d;border:1px solid #4caf50;border-radius:12px;
+      padding:12px;color:#66bb6a;font-family:'DM Sans',sans-serif;font-weight:600;
+      font-size:0.9rem;cursor:pointer;margin-bottom:12px;">
+      ✅ I've Verified My Email
+    </button>
+    <button onclick="resendVerification()" style="
+      width:100%;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;
+      padding:12px;color:#81c784;font-family:'DM Sans',sans-serif;font-size:0.85rem;
+      cursor:pointer;margin-bottom:12px;">
+      🔁 Resend Verification Email
+    </button>
+    <button onclick="handleSignOut()" style="
+      background:none;border:none;color:#4a6b4a;font-size:0.8rem;
+      cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:underline;">
+      ← Back to Login
+    </button>
+    <div id="verifyMsg" style="margin-top:14px;font-size:0.82rem;color:#81c784;min-height:20px;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     APP SHELL  (hidden until authenticated + verified)
+     ══════════════════════════════════════════════ -->
+<div id="appShell" style="display:none;">
+
+<header>
+  <div class="logo">
+    🌿 Green <span>Cucina</span>
+    <small>Kitchen Dashboard</small>
+  </div>
+  <div class="header-right">
+    <div id="audioWarning" style="background:#3a2f00;border:1px solid #ffc107;border-radius:8px;padding:6px 12px;font-size:0.78rem;color:#ffc107;cursor:pointer;" onclick="unlockAudio()" title="Click to enable sound">
+  🔇 Click to enable sound
+</div>
+    <div class="live-dot">
+      <div class="dot" id="liveDot"></div>
+      <span id="liveStatus">Live</span>
+    </div>
+    <div class="time-display" id="clock">--:--:--</div>
+    <button id="storeToggleBtn" onclick="toggleStoreStatus()" style="border:none;border-radius:8px;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+  Loading...
+</button>
+<button class="notif-btn" onclick="exportToExcel()">📥 Export Excel</button>    
+<div style="display:flex;align-items:center;gap:8px;">
+  <span style="font-size:0.8rem;color:#4a6b4a;">🔔</span>
+  <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5"
+    style="width:80px;accent-color:#4caf50;cursor:pointer;"/>
+  <span style="font-size:0.8rem;color:#4a6b4a;" id="volumeLabel">50%</span>
+</div>
+<button class="notif-btn" onclick="showDailySummary()">📊 Daily Summary</button>
+<button class="notif-btn" onclick="requestNotifPermission()">🔔 Alerts</button>
+    <div style="display:flex;align-items:center;gap:8px;border-left:1px solid #2a3d2a;padding-left:14px;margin-left:4px;">
+      <span id="authUserEmail" style="font-size:0.75rem;color:#4a6b4a;font-family:'DM Mono',monospace;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button onclick="handleSignOut()" style="background:#1e2e1e;border:1px solid #3a0f0f;border-radius:8px;padding:6px 12px;color:#e57373;font-family:'DM Sans',sans-serif;font-size:0.78rem;cursor:pointer;" title="Sign Out">⏏ Sign Out</button>
+    </div>
+  </div>
+</header>
+
+<div id="configBanner" class="config-banner" style="display:none">
+  ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> with your Supabase credentials. Same values as the order page. Orders sent from the customer page on <em>this same device/browser</em> will still appear below via local broadcast.
+</div>
+
+<div class="new-order-banner" id="newOrderBanner">
+  🔔 New order received! Scroll down to see it.
+</div>
+
+<div class="stats-bar">
+  <div class="stat-chip">
+    <div class="stat-dot" style="background:#ffc107"></div>
+    <div>
+      <div class="stat-label">Pending</div>
+      <div class="stat-num" id="statPending">0</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-dot" style="background:#42a5f5"></div>
+    <div>
+      <div class="stat-label">Preparing</div>
+      <div class="stat-num" id="statPreparing">0</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-dot" style="background:#66bb6a"></div>
+    <div>
+      <div class="stat-label">Done</div>
+      <div class="stat-num" id="statDone">0</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-dot" style="background:#f44336"></div>
+    <div>
+      <div class="stat-label">Rejected</div>
+      <div class="stat-num" id="statRejected">0</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="stat-dot" style="background:#4caf50"></div>
+    <div>
+      <div class="stat-label">Today Revenue</div>
+      <div class="stat-num" id="statRevenue">₹0</div>
+    </div>
+  </div>
+</div>
+
+<div style="padding:12px 24px 0;display:flex;gap:10px;flex-wrap:wrap;">
+  <input type="text" id="searchInput" placeholder="🔍 Search by table or phone..."
+    oninput="renderOrders()"
+    style="flex:1;min-width:200px;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:8px;padding:9px 14px;font-family:'DM Sans',sans-serif;font-size:0.85rem;color:#e8f5e9;outline:none;"/>
+</div>
+
+<div style="padding:12px 24px 0;">
+  <div style="font-size:0.78rem;color:#4a6b4a;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Menu Availability</div>
+  <div id="stockToggles" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+<div class="filter-tabs" id="filterTabs">
+  <button class="ftab active" onclick="setFilter('all')" data-filter="all">All Orders</button>
+  <button class="ftab" onclick="setFilter('pending')" data-filter="pending">🟡 Pending</button>
+  <button class="ftab" onclick="setFilter('preparing')" data-filter="preparing">🔵 Preparing</button>
+  <button class="ftab" onclick="setFilter('done')" data-filter="done">🟢 Done</button>
+  <button class="ftab" onclick="setFilter('rejected')" data-filter="rejected">🔴 Rejected</button>
+</div>
+
+<div class="orders-container">
+  <div id="ordersGrid" class="orders-grid"></div>
+</div>
+
+<div id="summaryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:400;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:#162016;border:1px solid #2a3d2a;border-radius:20px;padding:32px;max-width:400px;width:100%;max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-family:'Playfair Display',serif;font-size:1.3rem;color:#e8f5e9;">📊 Daily Summary</div>
+      <button onclick="closeSummary()" style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:50%;width:32px;height:32px;color:#81c784;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div id="summaryDate" style="font-size:0.8rem;color:#4a6b4a;margin-bottom:20px;font-family:'DM Mono',monospace;"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;">
+        <div style="font-size:0.75rem;color:#4a6b4a;margin-bottom:6px;">Total Orders</div>
+        <div id="sumTotal" style="font-size:1.6rem;font-weight:700;color:#e8f5e9;font-family:'DM Mono',monospace;">0</div>
+      </div>
+      <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;">
+        <div style="font-size:0.75rem;color:#4a6b4a;margin-bottom:6px;">Total Revenue</div>
+        <div id="sumRevenue" style="font-size:1.6rem;font-weight:700;color:#66bb6a;font-family:'DM Mono',monospace;">₹0</div>
+      </div>
+      <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;">
+        <div style="font-size:0.75rem;color:#4a6b4a;margin-bottom:6px;">Completed</div>
+        <div id="sumDone" style="font-size:1.6rem;font-weight:700;color:#66bb6a;font-family:'DM Mono',monospace;">0</div>
+      </div>
+      <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;">
+        <div style="font-size:0.75rem;color:#4a6b4a;margin-bottom:6px;">Rejected</div>
+        <div id="sumRejected" style="font-size:1.6rem;font-weight:700;color:#f44336;font-family:'DM Mono',monospace;">0</div>
+      </div>
+      <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;">
+        <div style="font-size:0.75rem;color:#4a6b4a;margin-bottom:6px;">Pending</div>
+        <div id="sumPending" style="font-size:1.6rem;font-weight:700;color:#ffc107;font-family:'DM Mono',monospace;">0</div>
+      </div>
+      <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;">
+        <div style="font-size:0.75rem;color:#4a6b4a;margin-bottom:6px;">Avg Order Value</div>
+        <div id="sumAvg" style="font-size:1.6rem;font-weight:700;color:#42a5f5;font-family:'DM Mono',monospace;">₹0</div>
+      </div>
+    </div>
+
+    <div style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-size:0.78rem;color:#4a6b4a;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Top Items Ordered</div>
+      <div id="sumTopItems"></div>
+    </div>
+
+    <button onclick="exportToExcel()" style="width:100%;background:#1e3a1e;border:1px solid #4caf50;border-radius:10px;padding:12px;color:#66bb6a;font-family:'DM Sans',sans-serif;font-size:0.88rem;cursor:pointer;">
+      📥 Export Today's Excel
+    </button>
+  </div>
+</div>
+<div id="printSlip">
+  <h2>🌿 Green Cucina</h2>
+  <div class="ps-sub">Farm-to-table Café, Kota, Rajasthan</div>
+  <hr class="ps-divider"/>
+  <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
+  <div class="ps-meta"><strong>Table No:</strong> <span id="psTable"></span></div>
+  <div class="ps-meta"><strong>Phone:</strong> <span id="psPhone"></span></div>
+  <div class="ps-meta"><strong>Date:</strong> <span id="psDate"></span></div>
+  <div class="ps-meta"><strong>Time:</strong> <span id="psTime"></span></div>
+  <div class="ps-meta"><strong>Status:</strong> <span id="psStatus"></span></div>
+  <hr class="ps-divider"/>
+  <div id="psItems"></div>
+  <hr class="ps-divider"/>
+  <div class="ps-row ps-total"><span>Total</span><span id="psTotal"></span></div>
+  <div class="ps-row"><span id="psNote"></span></div>
+  <hr class="ps-divider"/>
+  <div class="ps-foot">Payment at counter · Thank you 🌿</div>
+</div>
+<audio id="bellAudio" src="bell.mp3" preload="auto"></audio>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let orders = []; // { ...orderData, status }
+let activeFilter = 'all';
+let supabaseClient = null;
+let notifGranted = false;
+
+// ═══════════════════════════════════════════
+// INIT  (called by Firebase auth on verified login)
+// ═══════════════════════════════════════════
+let appInitialized = false;
+
+window.appInit = function() {
+  if (appInitialized) return;
+  appInitialized = true;
+
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  setInterval(async () => {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from('settings').select('key').limit(1);
+      if (error) {
+        document.getElementById('liveDot').classList.add('offline');
+        document.getElementById('liveStatus').textContent = 'Reconnecting…';
+        supabaseClient = null;
+        initSupabase();
+      }
+    }
+  }, 30000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (!supabaseClient) initSupabase();
+    }
+  });
+
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.getElementById('configBanner').style.display = 'block';
+    document.getElementById('liveDot').classList.add('offline');
+    document.getElementById('liveStatus').textContent = 'Local only';
+  } else {
+    initSupabase();
+  }
+
+  // BroadcastChannel for same-device demo
+  try {
+    const bc = new BroadcastChannel('green_cucina_orders');
+    bc.onmessage = (e) => {
+      receiveOrder(e.data);
+    };
+  } catch(e) {}
+}; // end window.appInit
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-IN');
+}
+
+// ═══════════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════════
+async function initSupabase() {
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Load today's orders
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    await loadStoreStatus();
+    await loadOutOfStock();
+    const { data, error } = await supabaseClient
+      .from('orders')
+      .select('*')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      let hasNew = false;
+      data.forEach(o => {
+        if (!orders.find(x => x.order_id === o.order_id)) {
+          orders.push(o);
+          hasNew = true;
+        }
+      });
+      if (hasNew) {
+        orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        renderOrders();
+        updateStats();
+      }
+    }
+
+    // Real-time subscription
+    await supabaseClient.removeAllChannels();
+  supabaseClient
+      .channel('orders-' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        receiveOrder(payload.new);
+      })
+      .subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      document.getElementById('liveDot').classList.remove('offline');
+      document.getElementById('liveStatus').textContent = 'Live';
+    } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+      document.getElementById('liveDot').classList.add('offline');
+      document.getElementById('liveStatus').textContent = 'Reconnecting…';
+      setTimeout(() => initSupabase(), 5000);
+    }
+  });
+
+  } catch(e) { console.error('Supabase error:', e); }
+}
+
+// ═══════════════════════════════════════════
+// RECEIVE ORDER
+// ═══════════════════════════════════════════
+function receiveOrder(orderData) {
+  if (orders.find(o => o.order_id === orderData.order_id)) return;
+  if (!storeOpen) return;
+  orders.unshift(orderData);
+  renderOrders();
+  updateStats();
+  showNewOrderToast(orderData);
+  showBanner();
+  playChime();
+  if (notifGranted) {
+    new Notification('🌿 New Order — Green Cucina', {
+      body: `Table ${orderData.table_no} · ₹${orderData.total} · ${orderData.items.length} item(s)`,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌿</text></svg>'
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+// STATUS CHANGE
+// ═══════════════════════════════════════════
+let chimeVolume = 0.5;
+const MENU_ITEMS = [
+  { id:1, name:'Avocado Sourdough Toast' },
+  { id:2, name:'Fluffy Ricotta Pancakes' },
+  { id:3, name:'Green Shakshuka' },
+  { id:4, name:'Pesto Pasta al Verde' },
+  { id:5, name:'The Big Green Bowl' },
+  { id:6, name:'Margherita Rustica' },
+  { id:7, name:'Single Origin Espresso' },
+  { id:8, name:'Matcha Latte' },
+  { id:9, name:'Garden Green Smoothie' },
+  { id:10, name:'Tiramisu Classico' },
+  { id:11, name:'Pistachio Panna Cotta' },
+  { id:12, name:'Dark Choco Fondant' },
+];
+let outOfStock = [];
+let storeOpen = true;
+
+async function loadOutOfStock() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.from('settings').select('out_of_stock').eq('key','store_status').single();
+  if (data) {
+    try { outOfStock = JSON.parse(data.out_of_stock || '[]'); } catch(e) { outOfStock = []; }
+  }
+  renderStockToggles();
+}
+
+function renderStockToggles() {
+  document.getElementById('stockToggles').innerHTML = MENU_ITEMS.map(item => {
+    const oos = outOfStock.includes(item.id);
+    return `
+      <button onclick="toggleStock(${item.id})"
+        style="border-radius:20px;padding:6px 12px;font-size:0.78rem;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;
+        background:${oos ? '#3a0f0f' : '#1e3a1e'};
+        color:${oos ? '#f44336' : '#66bb6a'};
+        border:1px solid ${oos ? '#f44336' : '#4caf50'};">
+        ${oos ? '❌' : '✅'} ${item.name}
+      </button>`;
+  }).join('');
+}
+
+async function toggleStock(itemId) {
+  if (outOfStock.includes(itemId)) {
+    outOfStock = outOfStock.filter(id => id !== itemId);
+  } else {
+    outOfStock.push(itemId);
+  }
+  renderStockToggles();
+  if (supabaseClient) {
+    await supabaseClient.from('settings').update({ out_of_stock: JSON.stringify(outOfStock) }).eq('key','store_status');
+  }
+}
+
+async function loadStoreStatus() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.from('settings').select('value').eq('key', 'store_status').single();
+  if (data) {
+    storeOpen = data.value === 'open';
+    updateToggleBtn();
+  }
+}
+
+function updateToggleBtn() {
+  const btn = document.getElementById('storeToggleBtn');
+  if (storeOpen) {
+    btn.textContent = '🟢 Store Open';
+    btn.style.background = '#1e3a1e';
+    btn.style.color = '#66bb6a';
+    btn.style.border = '1px solid #4caf50';
+  } else {
+    btn.textContent = '🔴 Store Closed';
+    btn.style.background = '#3a0f0f';
+    btn.style.color = '#f44336';
+    btn.style.border = '1px solid #f44336';
+  }
+}
+
+async function toggleStoreStatus() {
+  storeOpen = !storeOpen;
+  updateToggleBtn();
+  if (supabaseClient) {
+    await supabaseClient.from('settings').update({ value: storeOpen ? 'open' : 'closed' }).eq('key', 'store_status');
+  }
+}
+async function deleteOrder(orderId) {
+  const confirmed = confirm('Sure, you are deleting a ORDER DETAILS');
+  if (!confirmed) return;
+  orders = orders.filter(o => o.order_id !== orderId);
+  if (supabaseClient) {
+    await supabaseClient.from('orders').delete().eq('order_id', orderId);
+  }
+  renderOrders();
+  updateStats();
+}
+async function setStatus(orderId, newStatus) {
+  const order = orders.find(o => o.order_id === orderId);
+  if (!order) return;
+  order.status = newStatus;
+
+  if (supabaseClient) {
+    await supabaseClient.from('orders').update({ status: newStatus }).eq('order_id', orderId);
+  }
+
+  renderOrders();
+  updateStats();
+  showToast(newStatus === 'done' ? '✅' : newStatus === 'rejected' ? '❌' : '🔵',
+    `Order ${orderId}`,
+    `Marked as ${newStatus}`);
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.ftab').forEach(el => {
+    el.classList.toggle('active', el.dataset.filter === f);
+  });
+  renderOrders();
+}
+
+function renderOrders() {
+  const grid = document.getElementById('ordersGrid');
+  const searchTerm = document.getElementById('searchInput')
+    ? document.getElementById('searchInput').value.trim().toLowerCase()
+    : '';
+
+  let filtered = activeFilter === 'all' ? orders : orders.filter(o => o.status === activeFilter);
+
+  if (searchTerm) {
+    filtered = filtered.filter(o =>
+      (o.table_no && o.table_no.toLowerCase().includes(searchTerm)) ||
+      (o.phone_no && o.phone_no.includes(searchTerm))
+    );
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column:1/-1">
+        <div class="empty-state">
+          <div class="empty-icon">🌿</div>
+          <div class="empty-text">No ${activeFilter === 'all' ? '' : activeFilter + ' '}orders yet</div>
+          <div class="empty-sub">Orders will appear here in real-time</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(order => renderOrderCard(order)).join('');
+}
+
+function renderOrderCard(order) {
+  const time = new Date(order.created_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const date = new Date(order.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+  const statusBadge = {
+    pending:   '<span class="status-badge badge-pending">⏳ Pending</span>',
+    preparing: '<span class="status-badge badge-preparing">🔵 Preparing</span>',
+    done:      '<span class="status-badge badge-done">✅ Done</span>',
+    rejected:  '<span class="status-badge badge-rejected">❌ Rejected</span>',
+  }[order.status] || '';
+
+  const actionBtns = () => {
+    if (order.status === 'pending') return `
+      <button class="action-btn btn-accept" onclick="setStatus('${order.order_id}', 'preparing')">▶ Prepare</button>
+      <button class="action-btn btn-reject" onclick="setStatus('${order.order_id}', 'rejected')">✕ Reject</button>
+      <button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>`;
+    if (order.status === 'preparing') return `
+      <button class="action-btn btn-done" onclick="setStatus('${order.order_id}', 'done')">✓ Done</button>
+      <button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>`;
+    return `<button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>`;
+  };
+
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  return `
+    <div class="order-card status-${order.status}" id="oc-${order.order_id}">
+      <div class="card-header">
+        <div class="order-meta">
+          <div class="order-id">${order.order_id}</div>
+          <div class="order-table">📍 Table ${order.table_no}</div>
+          <div class="order-time">📅 ${date} &nbsp;⏱ ${time}</div>
+<div class="order-time">📞 ${order.phone_no || 'N/A'}</div>
+        </div>
+        ${statusBadge}
+      </div>
+      <div class="card-items">
+        ${items.map(item => `
+          <div class="order-item">
+            <span class="item-emoji">${item.emoji || '🍽'}</span>
+            <span class="item-name">${item.name}</span>
+            <span class="item-qty">×${item.qty}</span>
+          </div>
+        `).join('')}
+      </div>
+      ${order.note ? `<div class="order-note-text"><span>📝 Note:</span> ${order.note}</div>` : ''}
+      <div class="card-footer">
+        <div class="order-total">₹${order.total}</div>
+        <div class="action-btns">
+  ${actionBtns()}
+  <button class="action-btn btn-preparing" onclick="printOrder('${order.order_id}')">🖨 Print</button>
+</div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════
+function updateStats() {
+  document.getElementById('statPending').textContent = orders.filter(o => o.status === 'pending').length;
+  document.getElementById('statPreparing').textContent = orders.filter(o => o.status === 'preparing').length;
+  document.getElementById('statDone').textContent = orders.filter(o => o.status === 'done').length;
+  document.getElementById('statRejected').textContent = orders.filter(o => o.status === 'rejected').length;
+  const rev = orders.filter(o => o.status !== 'rejected').reduce((s,o) => s + (o.total || 0), 0);
+  document.getElementById('statRevenue').textContent = `₹${rev}`;
+}
+
+// ═══════════════════════════════════════════
+// TOASTS
+// ═══════════════════════════════════════════
+function showNewOrderToast(order) {
+  showToast('🔔', `New Order — Table ${order.table_no}`,
+    `${order.items.length} item(s) · ₹${order.total}`, true);
+}
+
+function showToast(icon, title, msg, isNew = false) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (isNew ? ' new-order' : '');
+  toast.innerHTML = `<div class="toast-icon">${icon}</div><div class="toast-body"><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+function showBanner() {
+  const b = document.getElementById('newOrderBanner');
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 5000);
+}
+
+// ═══════════════════════════════════════════
+// SOUND + NOTIFICATIONS
+// ═══════════════════════════════════════════
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  const bell = document.getElementById('bellAudio');
+  if (bell) {
+    bell.volume = 0;
+    bell.play().then(() => {
+      bell.pause();
+      bell.currentTime = 0;
+      bell.volume = chimeVolume;
+      audioUnlocked = true;
+      document.getElementById('audioWarning').style.display = 'none';
+    }).catch(() => {});
+  }
+}
+
+document.addEventListener('click', unlockAudio);
+document.addEventListener('touchstart', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
+function playChime() {
+  try {
+    if (!audioUnlocked) unlockAudio();
+    const bell = document.getElementById('bellAudio');
+    bell.volume = chimeVolume;
+    bell.currentTime = 0;
+    bell.play().catch(() => {});
+  } catch(e) {}
+}
+
+function printOrder(orderId) {
+  const order = orders.find(o => o.order_id === orderId);
+  if (!order) return;
+
+  const dt = new Date(order.created_at);
+  document.getElementById('psOrderId').textContent = order.order_id;
+  document.getElementById('psTable').textContent = order.table_no;
+  document.getElementById('psPhone').textContent = order.phone_no || 'N/A';
+  document.getElementById('psDate').textContent = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  document.getElementById('psTime').textContent = dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('psStatus').textContent = order.status.toUpperCase();
+  document.getElementById('psTotal').textContent = '₹' + order.total;
+  document.getElementById('psNote').textContent = order.note ? '📝 ' + order.note : '';
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  document.getElementById('psItems').innerHTML = items.map(i =>
+    `<div class="ps-row"><span>${i.emoji || ''} ${i.name} ×${i.qty}</span><span>₹${i.price * i.qty}</span></div>`
+  ).join('');
+
+  document.getElementById('printSlip').style.display = 'block';
+  window.print();
+  document.getElementById('printSlip').style.display = 'none';
+}
+
+function showDailySummary() {
+  const total = orders.length;
+  const done = orders.filter(o => o.status === 'done').length;
+  const rejected = orders.filter(o => o.status === 'rejected').length;
+  const pending = orders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
+  const revenue = orders.filter(o => o.status !== 'rejected').reduce((s, o) => s + (o.total || 0), 0);
+  const avg = done > 0 ? Math.round(revenue / (total - rejected)) : 0;
+
+  document.getElementById('sumTotal').textContent = total;
+  document.getElementById('sumRevenue').textContent = '₹' + revenue;
+  document.getElementById('sumDone').textContent = done;
+  document.getElementById('sumRejected').textContent = rejected;
+  document.getElementById('sumPending').textContent = pending;
+  document.getElementById('sumAvg').textContent = '₹' + avg;
+  document.getElementById('summaryDate').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+
+  const itemCount = {};
+  orders.filter(o => o.status !== 'rejected').forEach(o => {
+    (o.items || []).forEach(i => {
+      itemCount[i.name] = (itemCount[i.name] || 0) + i.qty;
+    });
+  });
+  const sorted = Object.entries(itemCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  document.getElementById('sumTopItems').innerHTML = sorted.length === 0
+    ? '<div style="font-size:0.82rem;color:#4a6b4a;">No items yet</div>'
+    : sorted.map((item, i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #2a3d2a;font-size:0.85rem;">
+          <span style="color:#e8f5e9;">${i + 1}. ${item[0]}</span>
+          <span style="color:#66bb6a;font-family:'DM Mono',monospace;">×${item[1]}</span>
+        </div>`).join('');
+
+  const modal = document.getElementById('summaryModal');
+  modal.style.display = 'flex';
+}
+
+function closeSummary() {
+  document.getElementById('summaryModal').style.display = 'none';
+}
+
+function exportToExcel() {
+  if (orders.length === 0) {
+    alert('No orders to export.');
+    return;
+  }
+
+  const rows = orders.map((o, index) => {
+    const itemsList = Array.isArray(o.items)
+      ? o.items.map(i => `${i.name} x${i.qty}`).join(', ')
+      : '';
+    const dt = new Date(o.created_at);
+    return {
+      'S.No': index + 1,
+      'Order ID': o.order_id,
+      'Table No': o.table_no,
+      'Phone No': o.phone_no || 'N/A',
+      'Items': itemsList,
+      'Total (₹)': o.total,
+      'Note': o.note || '',
+      'Status': o.status,
+      'Date': dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
+      'Time': dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }),
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
+
+  const today = new Date().toLocaleDateString('en-IN').replace(/\//g, '-');
+  XLSX.writeFile(workbook, `GreenCucina-Orders-${today}.xlsx`);
+}
+
+document.getElementById('volumeSlider').addEventListener('input', function() {
+  chimeVolume = parseFloat(this.value);
+  document.getElementById('volumeLabel').textContent = Math.round(chimeVolume * 100) + '%';
+});
+
+
+
+async function requestNotifPermission() {
+  if ('Notification' in window) {
+    const perm = await Notification.requestPermission();
+    notifGranted = perm === 'granted';
+    showToast('🔔', notifGranted ? 'Notifications enabled' : 'Notifications blocked', '');
+  }
+}
+</script>
+</div><!-- end #appShell -->
+</body>
+</html>

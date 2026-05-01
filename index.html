@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Green Cucina — Café & Kitchen, Kota</title>
+  <meta name="description" content="Green Cucina – A farm-fresh café & kitchen in Kota, Rajasthan. Wholesome food, artisan coffee, and a warm green ambiance." />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&family=Playfair+Display:ital@1&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav" id="navbar">
+    <div class="nav__logo">
+      <span class="logo-leaf">✦</span> Green Cucina
+    </div>
+    <button class="nav__hamburger" id="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+    <ul class="nav__links" id="navLinks">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#menu">Menu</a></li>
+      <li><a href="#gallery">Gallery</a></li>
+      <li><a href="#contact">Contact</a></li>
+      <li><a href="#reserve" class="nav__cta">Reserve a Table</a></li>
+      <li><a href="green-cucina-order.html" class="nav__cta">Order Now</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero" id="home">
+    <div class="hero__bg">
+      <div class="hero__circle hero__circle--1"></div>
+      <div class="hero__circle hero__circle--2"></div>
+      <div class="hero__circle hero__circle--3"></div>
+      <div class="hero__leaves">
+        <span class="leaf leaf--1">🌿</span>
+        <span class="leaf leaf--2">🍃</span>
+        <span class="leaf leaf--3">🌱</span>
+        <span class="leaf leaf--4">🍃</span>
+        <span class="leaf leaf--5">🌿</span>
+      </div>
+    </div>
+    <div class="hero__content">
+      <p class="hero__eyebrow">Café & Kitchen — Kota, Rajasthan</p>
+      <h1 class="hero__title">
+        Where Fresh Meets<br/>
+        <em>Flavourful</em>
+      </h1>
+      <p class="hero__sub">Farm-to-table meals, artisan brews & a sanctuary of green in the heart of Kota.</p>
+      <div class="hero__actions">
+        <a href="#menu" class="btn btn--primary">Explore Menu</a>
+        <a href="#reserve" class="btn btn--outline">Book a Table</a>
+      </div>
+    </div>
+    <div class="hero__scroll">
+      <span>Scroll</span>
+      <div class="hero__scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- MARQUEE STRIP -->
+  <div class="marquee-strip">
+    <div class="marquee-inner">
+      <span>Farm Fresh ✦</span>
+      <span>Artisan Coffee ✦</span>
+      <span>Italian-Inspired ✦</span>
+      <span>Wholesome Bowls ✦</span>
+      <span>Handcrafted Desserts ✦</span>
+      <span>Warm Ambiance ✦</span>
+      <span>Farm Fresh ✦</span>
+      <span>Artisan Coffee ✦</span>
+      <span>Italian-Inspired ✦</span>
+      <span>Wholesome Bowls ✦</span>
+      <span>Handcrafted Desserts ✦</span>
+      <span>Warm Ambiance ✦</span>
+    </div>
+  </div>
+
+  <!-- ABOUT -->
+  <section class="about" id="about">
+    <div class="container">
+      <div class="about__grid">
+        <div class="about__visual">
+          <div class="about__img-wrap">
+            <div class="about__img-placeholder">
+              <div class="img-art">
+                <div class="img-art__circle"></div>
+                <div class="img-art__leaf">🌿</div>
+                <div class="img-art__text">Est. Kota</div>
+              </div>
+            </div>
+            <div class="about__badge">
+              <span class="badge-num">4.8</span>
+              <span class="badge-label">★ Rating</span>
+            </div>
+          </div>
+        </div>
+        <div class="about__text">
+          <p class="section-tag">Our Story</p>
+          <h2 class="section-title">More Than a Café —<br/><em>A Way of Life</em></h2>
+          <p class="about__desc">Green Cucina was born from a simple belief: that food should be honest, beautiful, and good for you. Nestled in Kota's vibrant community, our kitchen blends Italian culinary philosophy with the richness of Rajasthani produce — bringing you meals that nourish the body and delight the senses.</p>
+          <p class="about__desc">Every ingredient we source is chosen with care. Every dish is plated with love. Whether you're grabbing a quick espresso or settling in for a lazy Sunday brunch, Green Cucina is your green corner in the city.</p>
+          <div class="about__stats">
+            <div class="stat">
+              <span class="stat__num">50+</span>
+              <span class="stat__label">Menu Items</span>
+            </div>
+            <div class="stat">
+              <span class="stat__num">100%</span>
+              <span class="stat__label">Fresh Daily</span>
+            </div>
+            <div class="stat">
+              <span class="stat__num">1000+</span>
+              <span class="stat__label">Happy Guests</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MENU -->
+  <section class="menu-section" id="menu">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">What We Serve</p>
+        <h2 class="section-title">Our Signature Menu</h2>
+        <p class="section-sub">Crafted fresh every day, inspired by seasons and soul.</p>
+      </div>
+
+      <div class="menu-tabs">
+        <button class="tab-btn active" data-tab="all">All</button>
+        <button class="tab-btn" data-tab="breakfast">Breakfast</button>
+        <button class="tab-btn" data-tab="mains">Mains</button>
+        <button class="tab-btn" data-tab="drinks">Drinks</button>
+        <button class="tab-btn" data-tab="desserts">Desserts</button>
+      </div>
+
+      <div class="menu-grid" id="menuGrid">
+
+        <div class="menu-card" data-cat="breakfast">
+          <div class="menu-card__icon">🥑</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Avocado Sourdough Toast</h3>
+              <span class="price">₹ 180</span>
+            </div>
+            <p>Smashed avocado, cherry tomatoes, feta & everything-bagel seasoning on house sourdough.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="breakfast">
+          <div class="menu-card__icon">🥞</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Fluffy Ricotta Pancakes</h3>
+              <span class="price">₹ 220</span>
+            </div>
+            <p>Light ricotta pancakes with maple syrup, fresh berries & whipped cream.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="breakfast">
+          <div class="menu-card__icon">🍳</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Green Shakshuka</h3>
+              <span class="price">₹ 200</span>
+            </div>
+            <p>Poached eggs in a vibrant spinach-herb sauce with feta and warm bread.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="mains">
+          <div class="menu-card__icon">🍝</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Pesto Pasta al Verde</h3>
+              <span class="price">₹ 280</span>
+            </div>
+            <p>Fusilli in homemade basil-walnut pesto, sun-dried tomatoes & parmesan shavings.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="mains">
+          <div class="menu-card__icon">🥗</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>The Big Green Bowl</h3>
+              <span class="price">₹ 250</span>
+            </div>
+            <p>Quinoa, roasted veggies, hummus, pickled red onions & tahini dressing.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="mains">
+          <div class="menu-card__icon">🍕</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Margherita Rustica</h3>
+              <span class="price">₹ 300</span>
+            </div>
+            <p>Stone-baked thin-crust pizza with San Marzano tomato, buffalo mozzarella & fresh basil.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="drinks">
+          <div class="menu-card__icon">☕</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Single Origin Espresso</h3>
+              <span class="price">₹ 90</span>
+            </div>
+            <p>Freshly pulled from Coorg-sourced Arabica beans. Bold, smooth, perfect.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="drinks">
+          <div class="menu-card__icon">🍵</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Matcha Latte</h3>
+              <span class="price">₹ 160</span>
+            </div>
+            <p>Ceremonial-grade matcha whisked with steamed oat milk & a hint of honey.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="drinks">
+          <div class="menu-card__icon">🥤</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Garden Green Smoothie</h3>
+              <span class="price">₹ 140</span>
+            </div>
+            <p>Spinach, banana, mango, ginger & coconut water — energise your day.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="desserts">
+          <div class="menu-card__icon">🍮</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Tiramisu Classico</h3>
+              <span class="price">₹ 180</span>
+            </div>
+            <p>Classic Italian tiramisu with mascarpone, espresso-soaked ladyfingers & cocoa dust.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="desserts">
+          <div class="menu-card__icon">🍰</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Pistachio Panna Cotta</h3>
+              <span class="price">₹ 160</span>
+            </div>
+            <p>Silky vanilla panna cotta with a pistachio crumble and rose compote.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+        <div class="menu-card" data-cat="desserts">
+          <div class="menu-card__icon">🍫</div>
+          <div class="menu-card__body">
+            <div class="menu-card__top">
+              <h3>Dark Choco Fondant</h3>
+              <span class="price">₹ 200</span>
+            </div>
+            <p>Warm 70% dark chocolate lava cake with vanilla bean ice cream & caramel drizzle.</p>
+            <span class="tag veg">Veg</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPERIENCE STRIP -->
+  <section class="experience">
+    <div class="container">
+      <div class="exp-grid">
+        <div class="exp-item">
+          <span class="exp-icon">🌿</span>
+          <h3>Farm Fresh</h3>
+          <p>Ingredients sourced from local farms and markets every morning.</p>
+        </div>
+        <div class="exp-item">
+          <span class="exp-icon">☕</span>
+          <h3>Artisan Brews</h3>
+          <p>Single-origin beans roasted to perfection by our in-house baristas.</p>
+        </div>
+        <div class="exp-item">
+          <span class="exp-icon">🪴</span>
+          <h3>Green Ambiance</h3>
+          <p>A lush, plant-filled space designed for calm, creativity & conversation.</p>
+        </div>
+        <div class="exp-item">
+          <span class="exp-icon">🍽️</span>
+          <h3>Chef's Care</h3>
+          <p>Every plate crafted by our passionate chefs with seasonal creativity.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GALLERY -->
+  <section class="gallery-section" id="gallery">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Visual Bites</p>
+        <h2 class="section-title">A Feast for the Eyes</h2>
+      </div>
+      <div class="gallery-grid">
+        <div class="gallery-item gallery-item--tall">
+          <div class="gallery-placeholder" style="background: linear-gradient(135deg, #4a7c59 0%, #2d5a3d 100%);">
+            <span class="gallery-emoji">🥗</span>
+            <p>Fresh Bowls</p>
+          </div>
+        </div>
+        <div class="gallery-item">
+          <div class="gallery-placeholder" style="background: linear-gradient(135deg, #8b5e3c 0%, #5c3d2e 100%);">
+            <span class="gallery-emoji">☕</span>
+            <p>Artisan Coffee</p>
+          </div>
+        </div>
+        <div class="gallery-item">
+          <div class="gallery-placeholder" style="background: linear-gradient(135deg, #6b8e5e 0%, #3d5c2e 100%);">
+            <span class="gallery-emoji">🍃</span>
+            <p>Our Space</p>
+          </div>
+        </div>
+        <div class="gallery-item gallery-item--wide">
+          <div class="gallery-placeholder" style="background: linear-gradient(135deg, #c9956b 0%, #a07040 100%);">
+            <span class="gallery-emoji">🍕</span>
+            <p>Stone-Baked Pizzas</p>
+          </div>
+        </div>
+        <div class="gallery-item">
+          <div class="gallery-placeholder" style="background: linear-gradient(135deg, #5c7a6e 0%, #2e4a3e 100%);">
+            <span class="gallery-emoji">🍰</span>
+            <p>Handcrafted Desserts</p>
+          </div>
+        </div>
+        <div class="gallery-item">
+          <div class="gallery-placeholder" style="background: linear-gradient(135deg, #7a8c5e 0%, #4a5c2e 100%);">
+            <span class="gallery-emoji">🌱</span>
+            <p>Garden Corner</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESERVE -->
+  <section class="reserve-section" id="reserve">
+    <div class="container">
+      <div class="reserve-wrap">
+        <div class="reserve-info">
+          <p class="section-tag">Book Your Spot</p>
+          <h2 class="section-title">Reserve a Table</h2>
+          <p>Join us for a memorable meal. Tables fill up fast on weekends — book ahead to secure your seat.</p>
+          <div class="contact-details">
+            <div class="contact-item">
+              <span class="contact-icon">📍</span>
+              <div>
+                <strong>Location</strong>
+                <p>Near Dadabari, Kota, Rajasthan — 324009</p>
+              </div>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">🕐</span>
+              <div>
+                <strong>Hours</strong>
+                <p>Mon–Sun: 9:00 AM – 10:00 PM</p>
+              </div>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">📞</span>
+              <div>
+                <strong>Call Us</strong>
+                <p>+91 98765 43210</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <form class="reserve-form" id="reserveForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="name">Full Name</label>
+              <input type="text" id="name" placeholder="Your name" required />
+            </div>
+            <div class="form-group">
+              <label for="phone">Phone</label>
+              <input type="tel" id="phone" placeholder="+91 XXXXX XXXXX" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="date">Date</label>
+              <input type="date" id="date" required />
+            </div>
+            <div class="form-group">
+              <label for="time">Time</label>
+              <select id="time" required>
+                <option value="">Select time</option>
+                <option>9:00 AM</option>
+                <option>10:00 AM</option>
+                <option>11:00 AM</option>
+                <option>12:00 PM</option>
+                <option>1:00 PM</option>
+                <option>2:00 PM</option>
+                <option>3:00 PM</option>
+                <option>5:00 PM</option>
+                <option>6:00 PM</option>
+                <option>7:00 PM</option>
+                <option>8:00 PM</option>
+                <option>9:00 PM</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="guests">Number of Guests</label>
+            <select id="guests" required>
+              <option value="">Select</option>
+              <option>1 Person</option>
+              <option>2 People</option>
+              <option>3–4 People</option>
+              <option>5–6 People</option>
+              <option>7+ People (Large Group)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="notes">Special Requests (optional)</label>
+            <textarea id="notes" rows="3" placeholder="Allergies, celebrations, seating preferences..."></textarea>
+          </div>
+          <button type="submit" class="btn btn--primary btn--full">Confirm Reservation</button>
+          <p class="form-note">We'll confirm your booking via WhatsApp or call within 2 hours.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP + CONTACT -->
+  <section class="contact-section" id="contact">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Find Us</p>
+        <h2 class="section-title">Come Say Hello</h2>
+      </div>
+      <div class="contact-grid">
+        <div class="map-embed">
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d71.05!2d75.8582225!3d25.1445288!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x396f85fe6c553617%3A0x61d7654289caa008!2sGreen%20Cucina!5e0!3m2!1sen!2sin!4v1714204800000!5m2!1sen!2sin"
+            width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade" title="Green Cucina on Google Maps">
+          </iframe>
+        </div>
+        <div class="contact-panel">
+          <h3>Get in Touch</h3>
+          <div class="contact-list">
+            <div class="contact-item">
+              <span class="contact-icon">📍</span>
+              <div>
+                <strong>Address</strong>
+                <p>Near Dadabari, Kota, Rajasthan — 324009</p>
+                <a href="https://maps.app.goo.gl/3z2wU65mgY1wtTTx7" target="_blank" class="link-arrow">Get Directions →</a>
+              </div>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">📞</span>
+              <div>
+                <strong>Phone / WhatsApp</strong>
+                <p>+91 98765 43210</p>
+              </div>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">📧</span>
+              <div>
+                <strong>Email</strong>
+                <p>hello@greencucina.in</p>
+              </div>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">🕐</span>
+              <div>
+                <strong>Hours</strong>
+                <p>Every Day: 9:00 AM – 10:00 PM</p>
+              </div>
+            </div>
+          </div>
+          <div class="social-links">
+            <a href="#" class="social-btn">Instagram</a>
+            <a href="#" class="social-btn">Facebook</a>
+            <a href="#" class="social-btn">Zomato</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__top">
+        <div class="footer__brand">
+          <span class="logo-leaf">✦</span>
+          <span class="footer__name">Green Cucina</span>
+          <p>A farm-fresh café & kitchen in Kota, Rajasthan. Honest food, honest flavours.</p>
+        </div>
+        <div class="footer__links">
+          <h4>Quick Links</h4>
+          <ul>
+            <li><a href="#home">Home</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#menu">Menu</a></li>
+            <li><a href="#gallery">Gallery</a></li>
+            <li><a href="#reserve">Reserve</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </div>
+        <div class="footer__hours">
+          <h4>Opening Hours</h4>
+          <p>Monday – Sunday</p>
+          <p class="hours-time">9:00 AM – 10:00 PM</p>
+          <p class="open-badge">● Open Today</p>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <p>© 2025 Green Cucina, Kota. All rights reserved.</p>
+        <p>Made with 🌿 in Rajasthan</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+
+  <script>
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzQEGmESiKjl_rYCFDGkHkdrGgiSgY9np5vFg6lO0Yb4wqvYZCEJd7s0J3izjxGgYb4ag/exec"; // paste your URL here
+
+  document.getElementById("reserveForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const btn = this.querySelector("button[type=submit]");
+    btn.textContent = "Booking...";
+    btn.disabled = true;
+
+    const payload = {
+      name:   document.getElementById("name").value,
+      phone:  document.getElementById("phone").value,
+      date:   document.getElementById("date").value,
+      time:   document.getElementById("time").value,
+      guests: document.getElementById("guests").value,
+      notes:  document.getElementById("notes").value,
+    };
+
+    try {
+      await fetch(SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors", // required for Apps Script
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      btn.textContent = "Reservation Confirmed ✓";
+      btn.style.background = "#2e7d32";
+      this.reset();
+    } catch (err) {
+      btn.textContent = "Failed — Try Again";
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
