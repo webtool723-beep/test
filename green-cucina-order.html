@@ -1122,6 +1122,8 @@ async function placeOrder() {
     order_id: orderId,
     table_no: tableNo,
     phone_no: phoneNo,
+    customer_name: window._currentUser ? (window._currentUser.displayName || '') : '',
+    customer_email: window._currentUser ? (window._currentUser.email || '') : '',
     items: items,
     total: total,
     note: note,
@@ -1369,3 +1371,4 @@ document.getElementById('authOverlay').addEventListener('click', function(e) {
 </script>
 </body>
 </html>
+
