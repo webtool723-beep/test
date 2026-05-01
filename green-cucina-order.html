@@ -40,6 +40,7 @@
       document.getElementById('headerUserName').textContent = user.displayName || user.email.split('@')[0];
       const avatar = document.getElementById('headerAvatar');
       avatar.textContent = (user.displayName || user.email)[0].toUpperCase();
+      if (typeof window.loadUserOrders === 'function') window.loadUserOrders();
     } else {
       btn.style.display = 'flex';
       userInfo.style.display = 'none';
@@ -1126,6 +1127,7 @@ async function placeOrder() {
     note: note,
     status: 'pending',
     created_at: new Date().toISOString(),
+    user_id: window._currentUser ? window._currentUser.uid : null,
   };
 
   let success = false;
@@ -1151,14 +1153,16 @@ async function placeOrder() {
 
   if (success || true) { // always show success for UX
     orderHistory.unshift({
-    order_id: orderId,
-    table_no: tableNo,
-    phone_no: phoneNo,
-    items: items,
-    total: total,
-    note: note,
-    placed_at: new Date()
-  });
+      order_id: orderId,
+      table_no: tableNo,
+      phone_no: phoneNo,
+      items: items,
+      total: total,
+      note: note,
+      status: 'pending',
+      placed_at: new Date()
+    });
+    subscribeToOrderStatus(orderId);
     cart = {};
     updateCartUI();
     toggleCart();
@@ -1186,6 +1190,97 @@ function downloadBill(orderId, tableNo, phoneNo, items, total) {
   window.print();
   document.getElementById('billTemplate').style.display = 'none';
 }
+// ═══════════════════════════════════════════
+// LOAD USER ORDER HISTORY FROM SUPABASE
+// ═══════════════════════════════════════════
+window.loadUserOrders = async function() {
+  if (!supabaseClient || !window._currentUser) return;
+  const { data, error } = await supabaseClient
+    .from('orders')
+    .select('*')
+    .eq('user_id', window._currentUser.uid)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('Load orders error:', error); return; }
+  if (!data || data.length === 0) return;
+
+  const existingIds = new Set(orderHistory.map(o => o.order_id));
+  data.forEach(o => {
+    if (existingIds.has(o.order_id)) {
+      // Just update status of orders already in session memory
+      const existing = orderHistory.find(h => h.order_id === o.order_id);
+      if (existing) existing.status = o.status;
+    } else {
+      // Pull in past orders from previous sessions
+      orderHistory.push({
+        order_id: o.order_id,
+        table_no: o.table_no,
+        phone_no: o.phone_no,
+        items: o.items,
+        total: o.total,
+        note: o.note,
+        status: o.status,
+        placed_at: new Date(o.created_at)
+      });
+    }
+  });
+
+  // Sort newest first
+  orderHistory.sort((a, b) => {
+    const aT = a.placed_at instanceof Date ? a.placed_at : new Date(a.placed_at);
+    const bT = b.placed_at instanceof Date ? b.placed_at : new Date(b.placed_at);
+    return bT - aT;
+  });
+
+  // Subscribe to real-time updates for active orders
+  orderHistory
+    .filter(o => o.status === 'pending' || o.status === 'preparing')
+    .forEach(o => subscribeToOrderStatus(o.order_id));
+};
+
+// ═══════════════════════════════════════════
+// REAL-TIME STATUS LISTENER FOR AN ORDER
+// ═══════════════════════════════════════════
+const _subscribedOrders = new Set();
+function subscribeToOrderStatus(orderId) {
+  if (!supabaseClient || _subscribedOrders.has(orderId)) return;
+  _subscribedOrders.add(orderId);
+  supabaseClient
+    .channel('ord-' + orderId)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'orders',
+      filter: `order_id=eq.${orderId}`
+    }, (payload) => {
+      const newStatus = payload.new.status;
+      const order = orderHistory.find(o => o.order_id === orderId);
+      if (order) {
+        order.status = newStatus;
+        if (document.getElementById('historyDrawer').classList.contains('open')) renderHistory();
+        const msgs = {
+          preparing: { icon: '🔵', msg: 'Your order is confirmed & being prepared!' },
+          done:      { icon: '✅', msg: 'Your order is ready! Please collect.' },
+          rejected:  { icon: '❌', msg: 'Your order was cancelled by kitchen.' }
+        };
+        if (msgs[newStatus]) showStatusToast(msgs[newStatus].icon, orderId, msgs[newStatus].msg);
+      }
+    })
+    .subscribe();
+}
+
+function showStatusToast(icon, orderId, msg) {
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--green-dark);color:var(--cream);border-radius:14px;padding:14px 20px;
+    font-family:'DM Sans',sans-serif;font-size:0.88rem;z-index:9999;
+    box-shadow:0 6px 24px rgba(0,0,0,0.35);display:flex;align-items:center;
+    gap:12px;max-width:300px;animation:slideUp 0.3s ease;`;
+  toast.innerHTML = `<span style="font-size:1.6rem;">${icon}</span>
+    <div><div style="font-weight:600;margin-bottom:2px;">${msg}</div>
+    <div style="font-size:0.75rem;opacity:0.65;">${orderId}</div></div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 6000);
+}
 function toggleHistory() {
   const overlay = document.getElementById('historyOverlay');
   const drawer = document.getElementById('historyDrawer');
@@ -1198,33 +1293,45 @@ function toggleHistory() {
 function renderHistory() {
   const el = document.getElementById('historyItems');
   if (orderHistory.length === 0) {
-    el.innerHTML = `<div class="empty-cart"><div class="empty-icon">📋</div><div>No orders yet this session</div></div>`;
+    el.innerHTML = `<div class="empty-cart"><div class="empty-icon">📋</div><div>No orders yet${window._currentUser ? '' : ' — Login to see past orders'}</div></div>`;
     return;
   }
-  el.innerHTML = orderHistory.map(order => `
-    <div style="padding:14px 0;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <span style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--text-light);">${order.order_id}</span>
-        <span style="font-size:0.78rem;color:var(--text-light);">
-          ${order.placed_at.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
-        </span>
+  el.innerHTML = orderHistory.map(order => {
+    const statusConfig = {
+      pending:   { label: '⏳ Pending — Waiting for kitchen', color: '#856404', bg: '#fffbf0' },
+      preparing: { label: '🔵 Confirmed & Preparing', color: '#0c4a8a', bg: '#eff6ff' },
+      done:      { label: '✅ Order Completed', color: '#166534', bg: '#f0fdf4' },
+      rejected:  { label: '❌ Cancelled by Kitchen', color: '#991b1b', bg: '#fef2f2' },
+    };
+    const sc = statusConfig[order.status] || statusConfig.pending;
+    const isDone = order.status === 'done';
+    const isCancelled = order.status === 'rejected';
+    const placedAt = order.placed_at instanceof Date ? order.placed_at : new Date(order.placed_at);
+    return `
+      <div style="padding:14px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--text-light);">${order.order_id}</span>
+          <span style="font-size:0.78rem;color:var(--text-light);">
+            ${placedAt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
+            · ${placedAt.toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}
+          </span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:8px;">📍 Table ${order.table_no} &nbsp;📞 ${order.phone_no}</div>
+        <div style="background:${sc.bg};color:${sc.color};border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:600;margin-bottom:8px;">${sc.label}</div>
+        ${!isCancelled ? order.items.map(i => `
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:3px 0;">
+            <span>${i.emoji} ${i.name} ×${i.qty}</span>
+            <span>₹${i.price * i.qty}</span>
+          </div>`).join('') : '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;">Order was not prepared.</div>'}
+        ${order.note ? `<div style="font-size:0.78rem;color:var(--text-light);margin-top:5px;font-style:italic;">📝 ${order.note}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+          ${isDone ? `<span style="font-weight:600;color:var(--green-dark);">Total: ₹${order.total}</span>` : `<span></span>`}
+          ${isDone ? `<button onclick="downloadBill('${order.order_id}','${order.table_no}','${order.phone_no}',orderHistory.find(o=>o.order_id==='${order.order_id}').items,${order.total})"
+            style="background:var(--green-dark);color:var(--cream);border:none;border-radius:50px;padding:6px 14px;font-size:0.78rem;cursor:pointer;">⬇ Bill</button>` : ''}
+        </div>
       </div>
-      <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:6px;">📍 Table ${order.table_no} &nbsp;📞 ${order.phone_no}</div>
-      ${order.items.map(i => `
-        <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:3px 0;">
-          <span>${i.emoji} ${i.name} ×${i.qty}</span>
-          <span>₹${i.price * i.qty}</span>
-        </div>`).join('')}
-      ${order.note ? `<div style="font-size:0.78rem;color:var(--text-light);margin-top:5px;font-style:italic;">📝 ${order.note}</div>` : ''}
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-        <span style="font-weight:600;color:var(--green-dark);">Total: ₹${order.total}</span>
-        <button onclick="downloadBill('${order.order_id}','${order.table_no}','${order.phone_no}',orderHistory.find(o=>o.order_id==='${order.order_id}').items,${order.total})"
-          style="background:var(--green-dark);color:var(--cream);border:none;border-radius:50px;padding:6px 14px;font-size:0.78rem;cursor:pointer;">
-          ⬇ Bill
-        </button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 function closeSuccess() {
   document.getElementById('successModal').classList.remove('show');
