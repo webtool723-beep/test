@@ -6,54 +6,6 @@
 <title>Green Cucina — Order</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- Firebase Phone Auth -->
-<script type="module">
-  import { initializeApp }                     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-  // 🔥 YOUR FIREBASE CONFIG — same as kitchen page
-  const firebaseConfig = {
-    apiKey: "AIzaSyCaetYJOBQoL0c6Y1DdJN1m-PMxpCcuRc0",
-  authDomain: "green-cucina.firebaseapp.com",
-  projectId: "green-cucina",
-  storageBucket: "green-cucina.firebasestorage.app",
-  messagingSenderId: "810215846761",
-  appId: "1:810215846761:web:201d72b7f2aea201dbc3f8"
-  };
-
-  const app  = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  auth.useDeviceLanguage();
-
-  window._auth = auth;
-
-  // Setup invisible reCAPTCHA
-  window.setupRecaptcha = function() {
-    if (window._recaptchaVerifier) return;
-    window._recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: () => {}
-    });
-  };
-
-  window.sendFirebaseOTP = async function(phoneNumber) {
-    window.setupRecaptcha();
-    const result = await signInWithPhoneNumber(auth, phoneNumber, window._recaptchaVerifier);
-    window._confirmationResult = result;
-  };
-
-  window.verifyFirebaseOTP = async function(code) {
-    const result = await window._confirmationResult.confirm(code);
-    return result.user;
-  };
-
-  window.resetRecaptcha = function() {
-    if (window._recaptchaVerifier) {
-      window._recaptchaVerifier.clear();
-      window._recaptchaVerifier = null;
-    }
-  };
-</script>
 <style>
   :root {
     --green-dark: #1a2e1a;
@@ -516,110 +468,6 @@
     .categories { padding: 16px 16px 8px; }
     .table-bar { padding: 12px 16px; }
   }
-
-  /* ── PHONE OTP ── */
-  .otp-wrap { display: flex; flex-direction: column; gap: 5px; }
-  .otp-row  { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-  .phone-field {
-    display: flex;
-    align-items: center;
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    background: white;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-  .phone-field:focus-within { border-color: var(--green-accent); }
-  .phone-prefix {
-    padding: 8px 10px;
-    font-size: 0.88rem;
-    color: var(--text-mid);
-    background: #f5f5f5;
-    border-right: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  .phone-field input {
-    border: none; outline: none;
-    padding: 8px 10px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.88rem;
-    color: var(--text-dark);
-    width: 130px;
-    background: transparent;
-  }
-
-  .send-otp-btn {
-    background: var(--green-dark);
-    color: var(--cream);
-    border: none;
-    border-radius: 8px;
-    padding: 9px 13px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.2s;
-  }
-  .send-otp-btn:hover:not(:disabled) { background: var(--green-accent); }
-  .send-otp-btn:disabled { background: #9ab89a; cursor: not-allowed; }
-
-  .otp-entry { display: none; align-items: center; gap: 6px; }
-  .otp-entry.show { display: flex; }
-  .otp-entry input {
-    width: 115px;
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-family: 'DM Mono', monospace;
-    font-size: 1.05rem;
-    letter-spacing: 5px;
-    text-align: center;
-    color: var(--text-dark);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .otp-entry input:focus { border-color: var(--green-accent); }
-  .verify-btn {
-    background: var(--green-accent);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 9px 13px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .verify-btn:hover { background: var(--green-dark); }
-
-  .phone-verified-badge {
-    display: none;
-    align-items: center;
-    gap: 6px;
-    background: #e8f5e9;
-    border: 1.5px solid #4caf50;
-    border-radius: 8px;
-    padding: 7px 12px;
-    font-size: 0.8rem;
-    color: #1a3a1a;
-    font-weight: 600;
-  }
-  .phone-verified-badge.show { display: flex; }
-
-  .otp-msg {
-    font-size: 0.75rem;
-    min-height: 15px;
-    padding-left: 2px;
-  }
-  .change-link {
-    background: none; border: none;
-    font-size: 0.72rem; color: var(--text-light);
-    cursor: pointer; text-decoration: underline;
-    font-family: 'DM Sans', sans-serif;
-  }
 </style>
 </head>
 <body>
@@ -628,6 +476,7 @@
 <script>
   const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM';
+  const WORKER_URL = 'https://green-cucina.jatan370.workers.dev';
 </script>
 
 <header>
@@ -658,43 +507,9 @@
   <input type="text" id="tableNo" class="table-input" placeholder="e.g. 05" maxlength="4"/>
   <label for="phoneNo">📞 Mobile:</label>
   <input type="tel" id="phoneNo" class="table-input" placeholder="10-digit number" maxlength="10" style="width:150px"/>
+  <label for="customerEmail" style="white-space:nowrap;">📧 Email <span style="font-size:0.75rem;color:var(--text-light);font-weight:400;">(receipt)</span>:</label>
+<input type="email" id="customerEmail" class="table-input" placeholder="optional" style="width:190px;"/>
 
-  <!-- Phone OTP Verification -->
-  <div class="otp-wrap">
-    <div class="otp-row">
-
-      <!-- Step 1: phone input + Send OTP -->
-      <div id="otpStep1" class="otp-row">
-        <div class="phone-field">
-          <span class="phone-prefix">🔒 Verify</span>
-          <input type="tel" id="otpPhone" maxlength="10" placeholder="10-digit number"
-            oninput="this.value=this.value.replace(/\D/g,'')"
-            onkeydown="if(event.key==='Enter')sendPhoneOTP()"/>
-        </div>
-        <button class="send-otp-btn" id="sendOtpBtn" onclick="sendPhoneOTP()">Send OTP</button>
-      </div>
-
-      <!-- Step 2: enter OTP -->
-      <div class="otp-entry" id="otpStep2">
-        <input type="text" id="otpCode" maxlength="6" placeholder="······"
-          oninput="this.value=this.value.replace(/\D/g,'')"
-          onkeydown="if(event.key==='Enter')verifyPhoneOTP()"/>
-        <button class="verify-btn" onclick="verifyPhoneOTP()">Verify</button>
-        <button class="change-link" onclick="resetPhoneOTP()">Change</button>
-      </div>
-
-      <!-- Step 3: verified -->
-      <div class="phone-verified-badge" id="otpVerifiedBadge">
-        ✅ <span id="verifiedPhoneText"></span>
-        <button class="change-link" onclick="resetPhoneOTP()" style="color:#4a7c4a;">Change</button>
-      </div>
-
-    </div>
-    <div class="otp-msg" id="otpMsg"></div>
-  </div>
-
-  <!-- invisible reCAPTCHA anchor -->
-  <div id="recaptcha-container"></div>
 </div>
 
 <div class="categories" id="categories"></div>
@@ -736,15 +551,33 @@
 <!-- Bill Template (hidden, for print only) -->
 <div id="billTemplate" style="display:none">
 <style id="billStyles">
+@page {
+  size: auto;          /* key: let page height = content height */
+  margin: 12mm;        /* uniform margin from all 4 sides */
+}
+
 @media print {
+  html, body {
+    height: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   body > * { display: none !important; }
   #billTemplate { display: block !important; }
 }
+
+@page {
+  size: auto;          /* page height = content only, no blank space */
+  margin: 14mm 12mm;   /* 14mm top & bottom, 12mm left & right */
+}
+
 #billTemplate {
   font-family: 'DM Sans', sans-serif;
-  max-width: 360px;
-  margin: 0 auto;
-  padding: 32px 28px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
   color: #000;
   background: #fff;
 }
@@ -782,6 +615,7 @@
     <div class="order-id-badge" id="successOrderId"></div>
     <p style="font-size:0.8rem;color:#aaa;">Show this to staff if needed</p>
     <button id="downloadBillBtn" style="background:#1a2e1a;color:#f7f3ed;border:none;border-radius:50px;padding:12px 28px;font-family:'DM Sans',sans-serif;font-size:0.9rem;cursor:pointer;margin-top:10px;display:block;width:100%;margin-bottom:8px;">⬇ Download Bill</button>
+    <div id="emailReceiptStatus" style="font-size:0.8rem;min-height:18px;margin-bottom:8px;transition:color 0.3s;"></div>
     <button class="success-close" onclick="closeSuccess()">Order More 🌿</button>
   </div>
 </div>
@@ -1012,13 +846,13 @@ async function placeOrder() {
     document.getElementById('phoneNo').focus();
     return;
   }
+  const customerEmail = document.getElementById('customerEmail').value.trim();
+if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+  alert('Please enter a valid email address (or leave it blank).');
+  document.getElementById('customerEmail').focus();
+  return;
+}
   if (Object.keys(cart).length === 0) return;
-
-  if (!phoneVerified) {
-    setOtpMsg('Please verify your phone number before placing the order.', 'red');
-    document.getElementById('otpPhone').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
 
   const btn = document.getElementById('placeOrderBtn');
   btn.disabled = true;
@@ -1036,6 +870,7 @@ async function placeOrder() {
     order_id: orderId,
     table_no: tableNo,
     phone_no: phoneNo,
+    email: customerEmail || null,
     items: items,
     total: total,
     note: note,
@@ -1082,8 +917,39 @@ async function placeOrder() {
     downloadBill(orderId, tableNo, phoneNo, items, total);
     document.getElementById('successModal').classList.add('show');
     document.getElementById('orderNote').value = '';
-    renderMenu();
+renderMenu();
+
+// Send email receipt via Cloudflare Worker (no API key in this file)
+if (customerEmail && WORKER_URL && !WORKER_URL.includes('YOUR_WORKER')) {
+  const emailStatusEl = document.getElementById('emailReceiptStatus');
+  if (emailStatusEl) {
+    emailStatusEl.textContent = '📧 Sending receipt to ' + customerEmail + '…';
+    emailStatusEl.style.color = '#8a8a8a';
   }
+  fetch(WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerEmail, orderId, tableNo, phoneNo, items, total, note })
+  })
+  .then(r => {
+    if (emailStatusEl) {
+      if (r.ok) {
+        emailStatusEl.textContent = '✅ Receipt sent to ' + customerEmail;
+        emailStatusEl.style.color = '#4a7c4a';
+      } else {
+        emailStatusEl.textContent = '⚠️ Could not send receipt email.';
+        emailStatusEl.style.color = '#c00';
+      }
+    }
+  })
+  .catch(() => {
+    if (emailStatusEl) {
+      emailStatusEl.textContent = '⚠️ Could not send receipt email.';
+      emailStatusEl.style.color = '#c00';
+    }
+  });
+}
+}
 }
 
 function downloadBill(orderId, tableNo, phoneNo, items, total) {
@@ -1143,122 +1009,6 @@ function renderHistory() {
 }
 function closeSuccess() {
   document.getElementById('successModal').classList.remove('show');
-}
-
-// ═══════════════════════════════════════════
-// PHONE OTP  (Firebase)
-// ═══════════════════════════════════════════
-let phoneVerified = false;
-let verifiedPhone = '';
-
-async function sendPhoneOTP() {
-  const raw = document.getElementById('otpPhone').value.trim();
-  if (!raw || raw.length !== 10 || !/^[6-9]\d{9}$/.test(raw)) {
-    setOtpMsg('Enter a valid 10-digit Indian mobile number.', 'red'); return;
-  }
-  if (typeof window.sendFirebaseOTP !== 'function') {
-    setOtpMsg('Firebase not initialised. Check your Firebase config.', 'red'); return;
-  }
-
-  const btn = document.getElementById('sendOtpBtn');
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-  setOtpMsg('', '');
-
-  try {
-    await window.sendFirebaseOTP('+91' + raw);
-    // Show OTP entry
-    document.getElementById('otpStep1').style.opacity = '0.5';
-    document.getElementById('otpStep1').style.pointerEvents = 'none';
-    document.getElementById('otpStep2').classList.add('show');
-    setOtpMsg('OTP sent! Check your SMS.', 'green');
-    startResendTimer(btn, 30);
-    document.getElementById('otpCode').focus();
-  } catch(e) {
-    console.error(e);
-    window.resetRecaptcha && window.resetRecaptcha();
-    btn.disabled = false;
-    btn.textContent = 'Send OTP';
-    const msg = e.code === 'auth/invalid-phone-number'   ? 'Invalid phone number.' :
-                e.code === 'auth/too-many-requests'       ? 'Too many attempts. Try later.' :
-                e.code === 'auth/captcha-check-failed'    ? 'reCAPTCHA failed. Reload & try.' :
-                'Failed to send OTP. Try again.';
-    setOtpMsg(msg, 'red');
-  }
-}
-
-async function verifyPhoneOTP() {
-  const code = document.getElementById('otpCode').value.trim();
-  if (!code || code.length !== 6) { setOtpMsg('Enter the 6-digit OTP.', 'red'); return; }
-
-  if (typeof window.verifyFirebaseOTP !== 'function') {
-    setOtpMsg('Firebase not ready.', 'red'); return;
-  }
-
-  const btn = document.querySelector('.verify-btn');
-  btn.textContent = 'Verifying…';
-  btn.disabled = true;
-
-  try {
-    await window.verifyFirebaseOTP(code);
-    const raw = document.getElementById('otpPhone').value.trim();
-    phoneVerified = true;
-    verifiedPhone = '+91 ' + raw;
-
-    document.getElementById('otpStep1').style.display = 'none';
-    document.getElementById('otpStep2').classList.remove('show');
-    document.getElementById('verifiedPhoneText').textContent = verifiedPhone;
-    document.getElementById('otpVerifiedBadge').classList.add('show');
-    setOtpMsg('', '');
-  } catch(e) {
-    console.error(e);
-    btn.textContent = 'Verify';
-    btn.disabled = false;
-    const msg = e.code === 'auth/invalid-verification-code' ? 'Wrong OTP. Please try again.' :
-                e.code === 'auth/code-expired'              ? 'OTP expired. Resend a new one.' :
-                'Verification failed. Try again.';
-    setOtpMsg(msg, 'red');
-    document.getElementById('otpCode').style.borderColor = '#f44336';
-    setTimeout(() => document.getElementById('otpCode').style.borderColor = '', 1500);
-  }
-}
-
-function resetPhoneOTP() {
-  phoneVerified = false;
-  verifiedPhone = '';
-  window.resetRecaptcha && window.resetRecaptcha();
-  document.getElementById('otpPhone').value = '';
-  document.getElementById('otpCode').value  = '';
-  document.getElementById('otpStep1').style.opacity      = '1';
-  document.getElementById('otpStep1').style.pointerEvents = '';
-  document.getElementById('otpStep1').style.display       = '';
-  document.getElementById('otpStep2').classList.remove('show');
-  document.getElementById('otpVerifiedBadge').classList.remove('show');
-  document.getElementById('sendOtpBtn').disabled    = false;
-  document.getElementById('sendOtpBtn').textContent = 'Send OTP';
-  setOtpMsg('', '');
-}
-
-function startResendTimer(btn, secs) {
-  let s = secs;
-  const t = setInterval(() => {
-    s--;
-    if (s <= 0) {
-      clearInterval(t);
-      btn.disabled = false;
-      btn.textContent = 'Resend OTP';
-      // reset recaptcha for resend
-      window.resetRecaptcha && window.resetRecaptcha();
-    } else {
-      btn.textContent = `Resend (${s}s)`;
-    }
-  }, 1000);
-}
-
-function setOtpMsg(msg, color) {
-  const el = document.getElementById('otpMsg');
-  el.textContent = msg;
-  el.style.color = color === 'green' ? '#276127' : color === 'red' ? '#c0392b' : '#888';
 }
 </script>
 </body>
