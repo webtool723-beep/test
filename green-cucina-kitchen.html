@@ -1284,8 +1284,17 @@ async function getNextInvoiceNumber() {
   return `INV-${today}-${String(seq).padStart(3, '0')}`;
 }
 
-  // ── Invoice number ──
-  const invoiceNo = await getNextInvoiceNumber();
+  // ── Invoice number — assign once per order, reuse after ──
+  if (!order.invoice_no) {
+    order.invoice_no = await getNextInvoiceNumber();
+    // persist it to Supabase so order page sees the same number
+    if (supabaseClient) {
+      await supabaseClient.from('orders')
+        .update({ invoice_no: order.invoice_no })
+        .eq('order_id', order.order_id);
+    }
+  }
+  const invoiceNo = order.invoice_no;
 
   const dt = new Date(order.created_at);
   document.getElementById('psInvoiceNo').textContent = invoiceNo;
