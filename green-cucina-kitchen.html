@@ -547,8 +547,6 @@
 #printSlip .ps-meta { font-size: 0.78rem; margin-bottom: 4px; }
 #printSlip .ps-total { font-weight: 700; font-size: 0.95rem; }
 #printSlip .ps-foot { text-align: center; font-size: 0.75rem; color: #555; margin-top: 14px; }
-.ps-gst-block { font-size:0.8rem; margin-bottom:4px; }
-.ps-gst-no { font-size:0.75rem; color:#555; margin-bottom:8px; }
 </style>
 </head>
 <body>
@@ -688,23 +686,6 @@
 
 <div id="configBanner" class="config-banner" style="display:none">
   ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> with your Supabase credentials. Same values as the order page. Orders sent from the customer page on <em>this same device/browser</em> will still appear below via local broadcast.
-</div>
-
-<!-- GST SETTINGS PANEL -->
-<div style="background:#1a2e1a;border:1px solid #2a3d2a;border-radius:12px;padding:14px 20px;margin:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-  <span style="font-size:0.78rem;color:#81c784;text-transform:uppercase;letter-spacing:1px;font-weight:600;">🧾 GST Billing</span>
-  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.85rem;color:#e8f5e9;">
-    <input type="checkbox" id="gstEnabled"
-      onchange="saveGstSettings(); document.getElementById('gstNumber').style.display = this.checked ? 'inline-block' : 'none';"
-      style="width:16px;height:16px;accent-color:#4caf50;cursor:pointer;"/>
-    Enable GST on Bills
-  </label>
-  <input type="text" id="gstNumber" placeholder="Enter GST No. (e.g. 08ABCDE1234F1Z5)"
-    oninput="saveGstSettings()"
-    style="display:none;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:8px;padding:7px 12px;
-    color:#e8f5e9;font-family:'DM Mono',monospace;font-size:0.82rem;width:260px;outline:none;"
-    onfocus="this.style.borderColor='#4caf50'" onblur="this.style.borderColor='#2a3d2a'"/>
-  <span id="gstSaveStatus" style="font-size:0.75rem;color:#4a6b4a;"></span>
 </div>
 
 <div class="new-order-banner" id="newOrderBanner">
@@ -858,7 +839,7 @@ window.appInit = function() {
       if (!supabaseClient) initSupabase();
     }
   });
-loadGstSettings();
+
   if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
     document.getElementById('configBanner').style.display = 'block';
     document.getElementById('liveDot').classList.add('offline');
@@ -1236,70 +1217,19 @@ function playChime() {
   } catch(e) {}
 }
 
-async function printOrder(orderId) {
+function printOrder(orderId) {
   const order = orders.find(o => o.order_id === orderId);
   if (!order) return;
 
-  // ═══════════════════════════════════════════
-// GST SETTINGS — save/load to Supabase
-// ═══════════════════════════════════════════
-let _gstSaveTimer = null;
-function saveGstSettings() {
-  clearTimeout(_gstSaveTimer);
-  document.getElementById('gstSaveStatus').textContent = '';
-  _gstSaveTimer = setTimeout(async () => {
-    const enabled = document.getElementById('gstEnabled').checked;
-    const gstNo = document.getElementById('gstNumber').value.trim();
-    if (!supabaseClient) return;
-    const { error } = await supabaseClient.from('settings')
-      .upsert({ key: 'gst_settings', gst_enabled: enabled, gst_number: gstNo }, { onConflict: 'key' });
-    document.getElementById('gstSaveStatus').textContent = error ? '⚠ Save failed' : '✓ Saved';
-    setTimeout(() => { document.getElementById('gstSaveStatus').textContent = ''; }, 2000);
-
-    // Broadcast change so order page picks it up via realtime
-  }, 600);
-}
-
-async function loadGstSettings() {
-  if (!supabaseClient) return;
-  const { data } = await supabaseClient.from('settings')
-    .select('gst_enabled, gst_number').eq('key', 'gst_settings').single();
-  if (data) {
-    document.getElementById('gstEnabled').checked = !!data.gst_enabled;
-    document.getElementById('gstNumber').value = data.gst_number || '';
-    document.getElementById('gstNumber').style.display = data.gst_enabled ? 'inline-block' : 'none';
-  }
-}
-
-// ═══════════════════════════════════════════
-// INVOICE NUMBER — auto-increment per day
-// ═══════════════════════════════════════════
-async function getNextInvoiceNumber() {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // "20250502"
-  const key = 'invoice_seq_' + today;
-  if (!supabaseClient) return 'INV-' + today + '-001';
-  // Use upsert with increment
-  const { data: existing } = await supabaseClient.from('settings')
-    .select('invoice_seq').eq('key', key).single();
-  const seq = existing ? (existing.invoice_seq || 0) + 1 : 1;
-  await supabaseClient.from('settings')
-    .upsert({ key, invoice_seq: seq }, { onConflict: 'key' });
-  return `INV-${today}-${String(seq).padStart(3, '0')}`;
-}
-
-  // ── Invoice number — assign once per order, reuse after ──
-  if (!order.invoice_no) {
-    order.invoice_no = await getNextInvoiceNumber();
-    // persist it to Supabase so order page sees the same number
-    if (supabaseClient) {
-      await supabaseClient.from('orders')
-        .update({ invoice_no: order.invoice_no })
-        .eq('order_id', order.order_id);
-    }
-  }
-  const invoiceNo = order.invoice_no;
-
   const dt = new Date(order.created_at);
+  const yy = dt.getFullYear().toString().slice(-2);
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const invoiceNo = `INV-${yy}${mm}-${order.order_id.replace('GC-', '')}`;
+  const subtotal = order.total || 0;
+  const cgst = Math.round(subtotal * 0.025 * 100) / 100;
+  const sgst = Math.round(subtotal * 0.025 * 100) / 100;
+  const grandTotal = subtotal + cgst + sgst;
+
   document.getElementById('psInvoiceNo').textContent = invoiceNo;
   document.getElementById('psOrderId').textContent = order.order_id;
   document.getElementById('psTable').textContent = order.table_no;
@@ -1307,34 +1237,16 @@ async function getNextInvoiceNumber() {
   document.getElementById('psDate').textContent = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('psTime').textContent = dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
   document.getElementById('psStatus').textContent = order.status.toUpperCase();
+  document.getElementById('psSubtotal').textContent = '₹' + subtotal.toFixed(2);
+  document.getElementById('psCGST').textContent = '₹' + cgst.toFixed(2);
+  document.getElementById('psSGST').textContent = '₹' + sgst.toFixed(2);
+  document.getElementById('psTotal').textContent = '₹' + grandTotal.toFixed(2);
   document.getElementById('psNote').textContent = order.note ? '📝 ' + order.note : '';
 
   const items = Array.isArray(order.items) ? order.items : [];
   document.getElementById('psItems').innerHTML = items.map(i =>
     `<div class="ps-row"><span>${i.emoji || ''} ${i.name} ×${i.qty}</span><span>₹${i.price * i.qty}</span></div>`
   ).join('');
-
-  // ── GST ──
-  const gstEnabled = document.getElementById('gstEnabled').checked;
-  const gstNo = document.getElementById('gstNumber').value.trim();
-  const subtotal = order.total;
-  const cgst = gstEnabled ? +(subtotal * 0.025).toFixed(2) : 0;
-  const sgst = gstEnabled ? +(subtotal * 0.025).toFixed(2) : 0;
-  const grandTotal = gstEnabled ? subtotal + cgst + sgst : subtotal;
-
-  document.getElementById('psSubtotal').textContent = '₹' + subtotal;
-  document.getElementById('psGstBlock').style.display = gstEnabled ? 'block' : 'none';
-  document.getElementById('psCgst').textContent = '₹' + cgst;
-  document.getElementById('psSgst').textContent = '₹' + sgst;
-  document.getElementById('psTotal').textContent = '₹' + grandTotal;
-
-  const gstNoEl = document.getElementById('psGstNo');
-  if (gstEnabled && gstNo) {
-    gstNoEl.textContent = 'GSTIN: ' + gstNo;
-    gstNoEl.style.display = 'block';
-  } else {
-    gstNoEl.style.display = 'none';
-  }
 
   document.getElementById('printSlip').style.display = 'block';
   window.print();
@@ -1576,7 +1488,7 @@ async function saveEditedOrder() {
 <div id="printSlip">
   <h2>🌿 Green Cucina</h2>
   <div class="ps-sub">Farm-to-table Café, Kota, Rajasthan</div>
-<div id="psGstNo" style="display:none;font-size:0.75rem;color:#000;font-weight:600;margin-bottom:6px;"></div>
+  <div class="ps-meta"><strong>GSTIN:</strong> 08AABCG1234D1ZQ</div> <!-----GST NUMBER ----------->
   <hr class="ps-divider"/>
   <div class="ps-meta"><strong>Invoice No:</strong> <span id="psInvoiceNo"></span></div>
   <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
@@ -1589,11 +1501,10 @@ async function saveEditedOrder() {
   <div id="psItems"></div>
   <hr class="ps-divider"/>
   <div class="ps-row"><span>Subtotal</span><span id="psSubtotal"></span></div>
-  <div id="psGstBlock" style="display:none;">
-    <div class="ps-row ps-gst-block"><span>CGST (2.5%)</span><span id="psCgst"></span></div>
-    <div class="ps-row ps-gst-block"><span>SGST (2.5%)</span><span id="psSgst"></span></div>
-  </div>
-  <div class="ps-row ps-total"><span>Total</span><span id="psTotal"></span></div>
+<div class="ps-row"><span>CGST @ 2.5%</span><span id="psCGST"></span></div>
+<div class="ps-row"><span>SGST @ 2.5%</span><span id="psSGST"></span></div>
+<hr class="ps-divider"/>
+<div class="ps-row ps-total"><span>Grand Total</span><span id="psTotal"></span></div>
   <div class="ps-row"><span id="psNote"></span></div>
   <hr class="ps-divider"/>
   <div class="ps-foot">Payment at counter · Thank you 🌿</div>
