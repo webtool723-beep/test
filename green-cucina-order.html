@@ -42,6 +42,7 @@
       const avatar = document.getElementById('headerAvatar');
       avatar.textContent = (user.displayName || user.email)[0].toUpperCase();
       if (guestBanner) guestBanner.style.display = 'none';
+      if (typeof window.loadFavourites === 'function') window.loadFavourites();
       if (typeof window.loadUserOrders === 'function') window.loadUserOrders();
     } else {
       btn.style.display = 'flex';
@@ -311,6 +312,7 @@
     transition: transform 0.2s, box-shadow 0.2s;
     display: flex;
     flex-direction: column;
+    position: relative; /* ← ADD THIS */
   }
   .menu-card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
   .card-emoji {
@@ -378,6 +380,22 @@
     transition: all 0.2s;
   }
   .add-btn:hover { background: var(--green-accent); }
+
+    .fav-btn {
+  position: absolute;
+  top: 10px; right: 10px;
+  background: rgba(255,255,255,0.85);
+  border: none;
+  border-radius: 50%;
+  width: 32px; height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  transition: transform 0.15s;
+  z-index: 2;
+}
+  .fav-btn:hover { transform: scale(1.2); }
 
   /* CART DRAWER */
   .cart-overlay {
@@ -954,13 +972,14 @@ const MENU = [
   { id:12, cat:'Desserts', emoji:'🍫', name:'Dark Choco Fondant', desc:'Warm 70% dark chocolate lava cake with vanilla bean ice cream & caramel drizzle.', price:200 },
 ];
 
-const CATEGORIES = ['All', 'Breakfast', 'Mains', 'Drinks', 'Desserts'];
-const CAT_ICONS = { All:'🌿', Breakfast:'🌅', Mains:'🍽️', Drinks:'☕', Desserts:'🍰' };
+const CATEGORIES = ['All', 'Favourites', 'Breakfast', 'Mains', 'Drinks', 'Desserts'];
+const CAT_ICONS = { All:'🌿', Favourites:'❤️', Breakfast:'🌅', Mains:'🍽️', Drinks:'☕', Desserts:'🍰' };
 
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
 let cart = {}; // { itemId: qty }
+let favourites = new Set(); // stores item IDs
 let OUT_OF_STOCK = [];
 
 async function fetchOutOfStock() {
@@ -999,6 +1018,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (supabaseClient) fetchOutOfStock();
   renderCategories();
   renderMenu();
+
+  loadFavourites();
 });
 
 // ═══════════════════════════════════════════
@@ -1024,6 +1045,18 @@ function setCategory(cat) {
 // ═══════════════════════════════════════════
 function renderMenu() {
   const section = document.getElementById('menuSection');
+   if (activeCategory === 'Favourites') {
+    const favItems = MENU.filter(i => favourites.has(i.id));
+    if (favItems.length === 0) {
+      section.innerHTML = `<div class="empty-cart" style="padding:60px 0;"><div class="empty-icon">🤍</div><div>No favourites yet — tap ❤️ on any item!</div></div>`;
+      return;
+    }
+    section.innerHTML = `
+      <div class="section-title">❤️ Your Favourites</div>
+      <div class="menu-grid">${favItems.map(item => renderCard(item)).join('')}</div>
+    `;
+    return;
+  }
   const cats = activeCategory === 'All' ? ['Breakfast','Mains','Drinks','Desserts'] : [activeCategory];
   section.innerHTML = cats.map(cat => {
     const items = MENU.filter(i => i.cat === cat);
@@ -1041,7 +1074,12 @@ function renderCard(item) {
   const oos = OUT_OF_STOCK.includes(item.id);
   return `
     <div class="menu-card" id="card-${item.id}" style="${oos ? 'opacity:0.45;pointer-events:none;' : ''}">
-      <div class="card-emoji">${item.emoji}</div>
+      <div class="card-emoji" style="position:relative;">
+  ${item.emoji}
+  <button class="fav-btn" onclick="toggleFavourite(event, ${item.id})" title="Favourite">
+    ${favourites.has(item.id) ? '❤️' : '🤍'}
+  </button>
+</div>
       <div class="card-body">
         <div class="card-name">${item.name}</div>
         <div class="card-desc">${item.desc}</div>
@@ -1083,6 +1121,44 @@ function refreshCard(id) {
   const card = document.getElementById(`card-${id}`);
   if (card) card.outerHTML = renderCard(item);
 }
+
+async function toggleFavourite(event, id) {
+  event.stopPropagation();
+  if (favourites.has(id)) {
+    favourites.delete(id);
+  } else {
+    favourites.add(id);
+  }
+  // Save to Supabase if signed in, else localStorage
+  await saveFavourites();
+  refreshCard(id);
+  // If currently on Favourites filter, re-render
+  if (activeCategory === 'Favourites') renderMenu();
+}
+
+async function saveFavourites() {
+  const favArray = [...favourites];
+  if (window._currentUser && supabaseClient) {
+    await supabaseClient.from('user_favourites')
+      .upsert({ user_id: window._currentUser.uid, item_ids: favArray }, { onConflict: 'user_id' });
+  } else {
+    localStorage.setItem('gc_favourites', JSON.stringify(favArray));
+  }
+}
+
+async function loadFavourites() {
+  if (window._currentUser && supabaseClient) {
+    const { data } = await supabaseClient.from('user_favourites')
+      .select('item_ids').eq('user_id', window._currentUser.uid).single();
+    if (data) favourites = new Set(data.item_ids);
+  } else {
+    const stored = localStorage.getItem('gc_favourites');
+    if (stored) favourites = new Set(JSON.parse(stored));
+  }
+  renderMenu();
+}
+
+window.loadFavourites = loadFavourites;
 
 function updateCartUI() {
   const count = Object.values(cart).reduce((a,b) => a+b, 0);
