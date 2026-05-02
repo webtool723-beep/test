@@ -1109,6 +1109,7 @@ function renderOrderCard(order) {
       <button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>`;
     if (order.status === 'preparing') return `
       <button class="action-btn btn-done" onclick="setStatus('${order.order_id}', 'done')">✓ Done</button>
+      <button class="action-btn btn-preparing" onclick="openEditModal('${order.order_id}')">✏️ Edit</button>
       <button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>`;
     return `<button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>`;
   };
@@ -1326,7 +1327,150 @@ async function requestNotifPermission() {
     showToast('🔔', notifGranted ? 'Notifications enabled' : 'Notifications blocked', '');
   }
 }
+// ═══════════════════════════════════════════
+// EDIT ORDER
+// ═══════════════════════════════════════════
+let _editOrderId = null;
+let _editItems = [];
+
+// Full menu with emoji + price (must match order page MENU array)
+const FULL_MENU = [
+  { id:1,  name:'Avocado Sourdough Toast',  emoji:'🥑', price:320 },
+  { id:2,  name:'Fluffy Ricotta Pancakes',  emoji:'🥞', price:290 },
+  { id:3,  name:'Green Shakshuka',           emoji:'🍳', price:340 },
+  { id:4,  name:'Pesto Pasta al Verde',      emoji:'🍝', price:380 },
+  { id:5,  name:'The Big Green Bowl',        emoji:'🥗', price:420 },
+  { id:6,  name:'Margherita Rustica',        emoji:'🍕', price:460 },
+  { id:7,  name:'Single Origin Espresso',    emoji:'☕', price:120 },
+  { id:8,  name:'Matcha Latte',              emoji:'🍵', price:180 },
+  { id:9,  name:'Garden Green Smoothie',     emoji:'🥤', price:220 },
+  { id:10, name:'Tiramisu Classico',         emoji:'🍮', price:260 },
+  { id:11, name:'Pistachio Panna Cotta',     emoji:'🍨', price:240 },
+  { id:12, name:'Dark Choco Fondant',        emoji:'🍫', price:280 },
+];
+
+function openEditModal(orderId) {
+  const order = orders.find(o => o.order_id === orderId);
+  if (!order) return;
+  _editOrderId = orderId;
+  _editItems = order.items.map(i => ({ ...i })); // deep copy
+
+  document.getElementById('editOrderId').textContent = orderId + ' · Table ' + order.table_no;
+
+  // Populate add-item dropdown
+  const sel = document.getElementById('addItemSelect');
+  sel.innerHTML = '<option value="">— Select item —</option>' +
+    FULL_MENU.map(m => `<option value="${m.id}">${m.emoji} ${m.name} — ₹${m.price}</option>`).join('');
+
+  renderEditItems();
+  document.getElementById('editOrderModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('editOrderModal').style.display = 'none';
+  _editOrderId = null;
+  _editItems = [];
+}
+
+function renderEditItems() {
+  const el = document.getElementById('editItemsList');
+  if (_editItems.length === 0) {
+    el.innerHTML = '<div style="font-size:0.82rem;color:#4a6b4a;font-style:italic;padding:8px 0;">No items — add at least one below.</div>';
+    return;
+  }
+  el.innerHTML = _editItems.map((item, idx) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2a3d2a;">
+      <span style="font-size:1rem;">${item.emoji || '🍽'}</span>
+      <span style="flex:1;font-size:0.88rem;color:#e8f5e9;">${item.name}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button onclick="changeEditQty(${idx}, -1)" style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:5px;width:26px;height:26px;color:#81c784;cursor:pointer;font-size:0.9rem;">−</button>
+        <span style="font-family:'DM Mono',monospace;font-size:0.85rem;color:#e8f5e9;min-width:18px;text-align:center;">×${item.qty}</span>
+        <button onclick="changeEditQty(${idx}, 1)" style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:5px;width:26px;height:26px;color:#81c784;cursor:pointer;font-size:0.9rem;">+</button>
+      </div>
+      <span style="font-size:0.82rem;color:#4a6b4a;font-family:'DM Mono',monospace;">₹${item.price * item.qty}</span>
+      <button onclick="removeEditItem(${idx})" style="background:#3a0f0f;border:1px solid #f4433640;border-radius:5px;width:26px;height:26px;color:#f44336;cursor:pointer;font-size:0.8rem;">✕</button>
+    </div>`).join('');
+}
+
+function changeEditQty(idx, delta) {
+  _editItems[idx].qty = Math.max(1, _editItems[idx].qty + delta);
+  renderEditItems();
+}
+
+function removeEditItem(idx) {
+  _editItems.splice(idx, 1);
+  renderEditItems();
+}
+
+function addItemToEdit() {
+  const sel = document.getElementById('addItemSelect');
+  const menuId = parseInt(sel.value);
+  if (!menuId) return;
+  const menuItem = FULL_MENU.find(m => m.id === menuId);
+  if (!menuItem) return;
+
+  const existing = _editItems.find(i => i.name === menuItem.name);
+  if (existing) {
+    existing.qty++;
+  } else {
+    _editItems.push({ name: menuItem.name, emoji: menuItem.emoji, price: menuItem.price, qty: 1 });
+  }
+  sel.value = '';
+  renderEditItems();
+}
+
+async function saveEditedOrder() {
+  if (!_editOrderId || _editItems.length === 0) {
+    alert('Order must have at least one item.');
+    return;
+  }
+  const newTotal = _editItems.reduce((s, i) => s + i.price * i.qty, 0);
+  const order = orders.find(o => o.order_id === _editOrderId);
+  if (!order) return;
+
+  order.items = _editItems;
+  order.total = newTotal;
+
+  if (supabaseClient) {
+    await supabaseClient.from('orders')
+      .update({ items: _editItems, total: newTotal })
+      .eq('order_id', _editOrderId);
+  }
+
+  closeEditModal();
+  renderOrders();
+  updateStats();
+  showToast('✏️', `Order ${_editOrderId}`, 'Order items updated');
+}
 </script>
+<!-- ═══ EDIT ORDER MODAL ═══ -->
+<div id="editOrderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:500;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:#162016;border:1px solid #2a3d2a;border-radius:20px;padding:28px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="font-family:'Playfair Display',serif;font-size:1.2rem;color:#e8f5e9;">✏️ Edit Order</div>
+      <button onclick="closeEditModal()" style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:50%;width:32px;height:32px;color:#81c784;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div id="editOrderId" style="font-family:'DM Mono',monospace;font-size:0.78rem;color:#4a6b4a;margin-bottom:14px;"></div>
+
+    <!-- Current items list -->
+    <div style="font-size:0.75rem;color:#81c784;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Current Items</div>
+    <div id="editItemsList" style="margin-bottom:16px;"></div>
+
+    <!-- Add item row -->
+    <div style="font-size:0.75rem;color:#81c784;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Add Item</div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <select id="addItemSelect" style="flex:1;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:8px;padding:9px 12px;color:#e8f5e9;font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;">
+        <option value="">— Select item —</option>
+      </select>
+      <button onclick="addItemToEdit()" style="background:#1e3a1e;border:1px solid #4caf50;border-radius:8px;padding:9px 16px;color:#66bb6a;font-family:'DM Sans',sans-serif;font-size:0.85rem;cursor:pointer;">+ Add</button>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveEditedOrder()" style="flex:1;background:#2d5a2d;border:1px solid #4caf50;border-radius:10px;padding:12px;color:#66bb6a;font-family:'DM Sans',sans-serif;font-weight:600;font-size:0.9rem;cursor:pointer;">💾 Save Changes</button>
+      <button onclick="closeEditModal()" style="flex:1;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:10px;padding:12px;color:#81c784;font-family:'DM Sans',sans-serif;font-size:0.9rem;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
 </div><!-- end #appShell -->
 
 <div id="printSlip">
