@@ -891,6 +891,8 @@
 <h1>Green Cucina</h1>
 <div class="sub">Farm-to-table Café & Kitchen, Kota, Rajasthan<br>Near Dadabari, Kota — 324009 | +91 98765 43210</div>
 <hr class="divider"/>
+<div class="meta"><strong>Invoice No:</strong> <span id="billInvoiceNo"></span></div>
+<div id="billGstNo" class="sub" style="display:none;margin-bottom:8px;"></div>
 <div class="meta"><strong>Order ID:</strong> <span id="billOrderId"></span></div>
 <div class="meta"><strong>Table No:</strong> <span id="billTable"></span></div>
 <div class="meta"><strong>Mobile:</strong> <span id="billPhone"></span></div>
@@ -899,6 +901,11 @@
 <hr class="divider"/>
 <div id="billItems"></div>
 <hr class="divider"/>
+<div class="row"><span>Subtotal</span><span id="billSubtotal"></span></div>
+<div id="billGstBlock" style="display:none;">
+  <div class="row" style="font-size:0.8rem;"><span>CGST (2.5%)</span><span id="billCgst"></span></div>
+  <div class="row" style="font-size:0.8rem;"><span>SGST (2.5%)</span><span id="billSgst"></span></div>
+</div>
 <div class="row bold"><span>Total Amount</span><span id="billTotal"></span></div>
 <hr class="divider"/>
 <div class="meta" style="font-size:0.75rem;color:#555;">Payment at counter. Please show this bill to staff.</div>
@@ -1306,20 +1313,64 @@ async function placeOrder() {
   }
 }
 
-function downloadBill(orderId, tableNo, phoneNo, items, total) {
+async function downloadBill(orderId, tableNo, phoneNo, items, total) {
   const now = new Date();
+
+  // ── Invoice number ──
+  const invoiceNo = await getBillInvoiceNumber();
+  document.getElementById('billInvoiceNo').textContent = invoiceNo;
+
   document.getElementById('billOrderId').textContent = orderId;
   document.getElementById('billTable').textContent = tableNo;
   document.getElementById('billPhone').textContent = phoneNo;
   document.getElementById('billDate').textContent = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('billTime').textContent = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-  document.getElementById('billTotal').textContent = '₹' + total;
   document.getElementById('billItems').innerHTML = items.map(i =>
     `<div class="row"><span>${i.emoji} ${i.name} ×${i.qty}</span><span>₹${i.price * i.qty}</span></div>`
   ).join('');
+
+  // ── GST (read settings from Supabase) ──
+  let gstEnabled = false, gstNo = '';
+  if (supabaseClient) {
+    const { data } = await supabaseClient.from('settings')
+      .select('gst_enabled, gst_number').eq('key', 'gst_settings').single();
+    if (data) { gstEnabled = !!data.gst_enabled; gstNo = data.gst_number || ''; }
+  }
+
+  const subtotal = total;
+  const cgst = gstEnabled ? +(subtotal * 0.025).toFixed(2) : 0;
+  const sgst = gstEnabled ? +(subtotal * 0.025).toFixed(2) : 0;
+  const grandTotal = gstEnabled ? subtotal + cgst + sgst : subtotal;
+
+  document.getElementById('billSubtotal').textContent = '₹' + subtotal;
+  document.getElementById('billGstBlock').style.display = gstEnabled ? 'block' : 'none';
+  document.getElementById('billCgst').textContent = '₹' + cgst;
+  document.getElementById('billSgst').textContent = '₹' + sgst;
+  document.getElementById('billTotal').textContent = '₹' + grandTotal;
+
+  const gstNoEl = document.getElementById('billGstNo');
+  if (gstEnabled && gstNo) {
+    gstNoEl.textContent = 'GSTIN: ' + gstNo;
+    gstNoEl.style.display = 'block';
+  } else {
+    gstNoEl.style.display = 'none';
+  }
+
   document.getElementById('billTemplate').style.display = 'block';
   window.print();
   document.getElementById('billTemplate').style.display = 'none';
+}
+
+async function getBillInvoiceNumber() {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const key = 'invoice_seq_' + today;
+  if (!supabaseClient) return 'INV-' + today + '-001';
+  const { data: existing } = await supabaseClient.from('settings')
+    .select('invoice_seq').eq('key', key).single();
+  const seq = existing ? (existing.invoice_seq || 0) + 1 : 1;
+  await supabaseClient.from('settings')
+    .upsert({ key, invoice_seq: seq }, { onConflict: 'key' });
+  return `INV-${today}-${String(seq).padStart(3, '0')}`;
 }
 // ═══════════════════════════════════════════
 // LOAD USER ORDER HISTORY FROM SUPABASE
