@@ -1383,10 +1383,19 @@ function subscribeToOrderStatus(orderId) {
       table: 'orders',
       filter: `order_id=eq.${orderId}`
     }, (payload) => {
-      const newStatus = payload.new.status;
       const order = orderHistory.find(o => o.order_id === orderId);
       if (order) {
+        const newStatus = payload.new.status;
         order.status = newStatus;
+        // Sync edited items/total from kitchen
+        if (payload.new.items) order.items = payload.new.items;
+        if (payload.new.total) order.total = payload.new.total;
+        if (payload.new.items && JSON.stringify(payload.new.items) !== JSON.stringify(order.items)) {
+  order.edited = true;
+}
+// Then overwrite
+if (payload.new.items) order.items = payload.new.items;
+if (payload.new.total) order.total = payload.new.total;
         if (document.getElementById('historyDrawer').classList.contains('open')) renderHistory();
         const msgs = {
           preparing: { icon: '🔵', msg: 'Your order is confirmed & being prepared!' },
@@ -1453,7 +1462,7 @@ function renderHistory() {
           <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:3px 0;">
             <span>${i.emoji} ${i.name} ×${i.qty}</span>
             <span>₹${i.price * i.qty}</span>
-          </div>`).join('') : '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;">Order was not prepared.</div>'}
+          </div>`).join('') + (order.edited ? '<div style="font-size:0.75rem;color:var(--gold);margin-top:4px;font-style:italic;">✏️ Order was modified by kitchen</div>' : '') : '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;">Order was not prepared.</div>'}
         ${order.note ? `<div style="font-size:0.78rem;color:var(--text-light);margin-top:5px;font-style:italic;">📝 ${order.note}</div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
           ${isDone ? `<span style="font-weight:600;color:var(--green-dark);">Total: ₹${order.total}</span>` : `<span></span>`}
