@@ -1316,8 +1316,15 @@ async function placeOrder() {
 async function downloadBill(orderId, tableNo, phoneNo, items, total) {
   const now = new Date();
 
-  // ── Invoice number ──
-  const invoiceNo = await getBillInvoiceNumber();
+  // ── Invoice number — read from order record, don't increment again ──
+  let invoiceNo = '';
+  if (supabaseClient) {
+    const { data } = await supabaseClient.from('orders')
+      .select('invoice_no').eq('order_id', orderId).single();
+    invoiceNo = data?.invoice_no || orderId; // fallback to order ID if not yet set
+  } else {
+    invoiceNo = orderId;
+  }
   document.getElementById('billInvoiceNo').textContent = invoiceNo;
 
   document.getElementById('billOrderId').textContent = orderId;
