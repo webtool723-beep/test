@@ -1265,6 +1265,7 @@ async function loadGstSettings() {
   if (data) {
     document.getElementById('gstEnabled').checked = !!data.gst_enabled;
     document.getElementById('gstNumber').value = data.gst_number || '';
+    document.getElementById('gstNumber').style.display = data.gst_enabled ? 'inline-block' : 'none';
   }
 }
 
@@ -1573,7 +1574,7 @@ async function saveEditedOrder() {
 <div id="printSlip">
   <h2>🌿 Green Cucina</h2>
   <div class="ps-sub">Farm-to-table Café, Kota, Rajasthan</div>
-  <div id="psGstNo" class="ps-gst-no" style="display:none;"></div>
+<div id="psGstNo" style="display:none;font-size:0.75rem;color:#555;margin-bottom:4px;"></div>
   <hr class="ps-divider"/>
   <div class="ps-meta"><strong>Invoice No:</strong> <span id="psInvoiceNo"></span></div>
   <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
@@ -1597,3 +1598,4 @@ async function saveEditedOrder() {
 </div>
 </body>
 </html>
+
