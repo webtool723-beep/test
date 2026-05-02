@@ -33,18 +33,37 @@
     window._currentUser = user;
     const btn = document.getElementById('authHeaderBtn');
     const userInfo = document.getElementById('headerUserInfo');
-    if (!btn) return;
+    const guestBanner = document.getElementById('guestWarningBanner');
+    
     if (user) {
       btn.style.display = 'none';
       userInfo.style.display = 'flex';
       document.getElementById('headerUserName').textContent = user.displayName || user.email.split('@')[0];
       const avatar = document.getElementById('headerAvatar');
       avatar.textContent = (user.displayName || user.email)[0].toUpperCase();
+      if (guestBanner) guestBanner.style.display = 'none';
       if (typeof window.loadUserOrders === 'function') window.loadUserOrders();
     } else {
       btn.style.display = 'flex';
       userInfo.style.display = 'none';
+      if (guestBanner) guestBanner.style.display = 'flex';
     }
+
+    // Mobile auth elements
+    const mobileBtn = document.getElementById('mobileAuthBtn');
+    const mobileRow = document.getElementById('mobileUserRow');
+    if (mobileBtn) {
+      if (user) {
+        mobileBtn.style.display = 'none';
+        mobileRow.style.display = 'flex';
+        document.getElementById('mobileUserName').textContent = user.displayName || user.email.split('@')[0];
+        document.getElementById('mobileAvatar').textContent = (user.displayName || user.email)[0].toUpperCase();
+      } else {
+        mobileBtn.style.display = 'flex';
+        mobileRow.style.display = 'none';
+      }
+    }
+  
   });
 
   window.firebaseSignOut = async () => {
@@ -138,11 +157,23 @@
     z-index: 100;
     box-shadow: 0 2px 20px rgba(0,0,0,0.3);
   }
+  .logo-icon { font-size: 1.6rem; }
+    @media (max-width: 640px) {
+    #mobileAuthSection { display: flex !important; }
+    .hero-orders-btn { display: inline-flex !important; }
+    .header-my-orders { display: none !important; }
+    .header-auth-group { display: none !important; }
+    .cart-btn-label { display: none; }
+    .logo-text { display: none; }
+    .table-bar { flex-direction:column; align-items:stretch; }
+    .table-input { width: 100% !important; }
+  }
   .logo {
     font-family: 'Playfair Display', serif;
     font-size: 1.5rem;
     color: var(--cream);
     letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
   .logo span { color: var(--green-light); font-style: italic; }
   .cart-btn {
@@ -698,27 +729,22 @@
 </script>
 
 <header>
-  <div class="logo">🌿 Green <span>Cucina</span></div>
-
-  <!-- Auth: shown when logged out -->
-  <button class="cart-btn" id="authHeaderBtn" onclick="openAuthModal()" style="background:#2d4a2d;">
-    🔑 Login
-  </button>
-
-  <!-- User info: shown when logged in -->
-  <div class="header-user" id="headerUserInfo">
-    <div class="header-avatar" id="headerAvatar">?</div>
-    <span class="header-username" id="headerUserName"></span>
-    <button class="header-logout" onclick="firebaseSignOut()">Logout</button>
+  <div class="logo">
+  <span class="logo-icon">🌿</span>
+  <span class="logo-text"> Green <span>Cucina</span></span>
+</div>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <button class="cart-btn header-my-orders" onclick="toggleHistory()" style="background:#2d4a2d;">📋 My Orders</button>
+    <button class="cart-btn" onclick="toggleCart()">🛒 <span class="cart-btn-label">Your Order</span> <span class="cart-count" id="cartCount">0</span></button>
+    <div class="header-auth-group">
+      <button class="cart-btn" id="authHeaderBtn" onclick="openAuthModal()" style="background:#2d4a2d;">🔑 Login</button>
+      <div class="header-user" id="headerUserInfo">
+        <div class="header-avatar" id="headerAvatar">?</div>
+        <span class="header-username" id="headerUserName"></span>
+        <button class="header-logout" onclick="firebaseSignOut()">Logout</button>
+      </div>
+    </div>
   </div>
-
-  <button class="cart-btn" onclick="toggleHistory()" style="background:#2d4a2d;margin-left:8px;">
-    📋 My Orders
-  </button>
-  <button class="cart-btn" onclick="toggleCart()" style="margin-left:8px;">
-    🛒 Your Order
-    <span class="cart-count" id="cartCount">0</span>
-  </button>
 </header>
 
 <div id="configBanner" class="config-banner" style="display:none">
@@ -731,13 +757,28 @@
 </div>
   <h1>Order <em>Fresh</em> & Fast</h1>
   <p>Farm-to-table meals crafted with love — Kota, Rajasthan</p>
+<button class="hero-orders-btn" onclick="toggleHistory()" style="display:none; margin-top:14px; background:rgba(255,255,255,0.12); color:var(--cream); border:1px solid rgba(255,255,255,0.25); border-radius:50px; padding:9px 22px; font-family:'DM Sans',sans-serif; font-size:0.88rem; cursor:pointer;">📋 My Orders</button>
+</div>
+<div id="mobileAuthSection" style="display:none; background:var(--green-dark); padding:10px 16px; align-items:center; justify-content:space-between; gap:10px;">
+  <button id="mobileAuthBtn" onclick="openAuthModal()" style="flex:1; background:rgba(255,255,255,0.12); color:var(--cream); border:1px solid rgba(255,255,255,0.2); border-radius:50px; padding:8px 18px; font-family:'DM Sans',sans-serif; font-size:0.85rem; cursor:pointer;">🔑 Login / Sign Up to track orders</button>
+  <div id="mobileUserRow" style="display:none; width:100%; align-items:center; justify-content:space-between; gap:10px;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div id="mobileAvatar" style="width:30px;height:30px;background:var(--green-light);color:var(--green-dark);border-radius:50%;font-weight:700;font-size:0.82rem;display:flex;align-items:center;justify-content:center;">?</div>
+      <span id="mobileUserName" style="color:var(--cream);font-size:0.85rem;font-weight:500;"></span>
+    </div>
+    <button onclick="firebaseSignOut()" style="background:rgba(255,255,255,0.12);color:var(--cream);border:none;border-radius:50px;padding:5px 12px;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">Logout</button>
+  </div>
 </div>
 
 <div class="table-bar">
-  <label for="tableNo">📍 Table Number:</label>
-  <input type="text" id="tableNo" class="table-input" placeholder="e.g. 05" maxlength="4"/>
-  <label for="phoneNo">📞 Mobile:</label>
-  <input type="tel" id="phoneNo" class="table-input" placeholder="10-digit number" maxlength="10" style="width:150px"/>
+  <div style="display:flex; flex-direction:column; gap:5px;">
+    <label for="tableNo" style="font-size:0.8rem; font-weight:600; color:var(--text-mid);">📍 Table Number</label>
+    <input type="text" id="tableNo" class="table-input" placeholder="e.g. 05" maxlength="4"/>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:5px;">
+    <label for="phoneNo" style="font-size:0.8rem; font-weight:600; color:var(--text-mid);">📞 Mobile Number</label>
+    <input type="tel" id="phoneNo" class="table-input" placeholder="10-digit number" maxlength="10" style="width:180px"/>
+  </div>
 </div>
 
 <div class="categories" id="categories"></div>
@@ -773,6 +814,18 @@
     <button class="place-order-btn" id="placeOrderBtn" onclick="placeOrder()">
       🌿 Place Order
     </button>
+  </div>
+</div>
+
+<!-- Guest Warning Banner -->
+<div id="guestWarningBanner" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:500;
+  background:linear-gradient(135deg,#2a1a00,#3a2500); border-top:1px solid #ffc10750;
+  padding:12px 20px; font-family:'DM Sans',sans-serif; font-size:0.83rem; color:#ffc107;
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+  <span>⚠️ You're ordering as a <strong>Guest</strong> — order history won't be saved. <span style="color:#e8d5a0;opacity:0.75;">Sign in to track your orders.</span></span>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button onclick="openAuthModal()" style="background:#ffc107;color:#1a1000;border:none;border-radius:8px;padding:6px 14px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Sign In</button>
+    <button onclick="document.getElementById('guestWarningBanner').style.display='none'" style="background:none;border:none;color:#ffc10790;font-size:1rem;cursor:pointer;padding:4px 6px;">✕</button>
   </div>
 </div>
 
@@ -1371,4 +1424,3 @@ document.getElementById('authOverlay').addEventListener('click', function(e) {
 </script>
 </body>
 </html>
-
