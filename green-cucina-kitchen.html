@@ -547,10 +547,54 @@
 #printSlip .ps-meta { font-size: 0.78rem; margin-bottom: 4px; }
 #printSlip .ps-total { font-weight: 700; font-size: 0.95rem; }
 #printSlip .ps-foot { text-align: center; font-size: 0.75rem; color: #555; margin-top: 14px; }
+
+/* ── Mobile Block Overlay ── */
+#mobileBlock {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #1a1a1a;
+  color: #ffffff;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  font-family: 'Inter', sans-serif;
+}
+#mobileBlock .mb-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+}
+#mobileBlock h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #ffffff;
+}
+#mobileBlock p {
+  font-size: 0.95rem;
+  color: #aaaaaa;
+  line-height: 1.6;
+  max-width: 300px;
+}
+@media (max-width: 768px) {
+  #mobileBlock {
+    display: flex;
+  }
+}
 </style>
 </head>
 <body>
 
+<!-- Mobile Block Message -->
+<div id="mobileBlock">
+  <div class="mb-icon">🖥️</div>
+  <h2>Desktop Only Experience</h2>
+  <p>This dashboard is designed for larger screens. Please open it on a desktop or laptop for the best experience.</p>
+</div>
+  
 <!-- ═══ CONFIG (SAME AS ORDER PAGE) ═══ -->
 <script>
   const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
@@ -654,7 +698,7 @@
 <header>
   <div class="logo">
     🌿 Green <span>Cucina</span>
-    <small>Kitchen Dashboard</small>
+    <small>Kitchen Dashboard - Powered by  <a href="https://webtool723-beep.github.io/Websites-collection/" style="color: red;">WeCraft Studio</a></small>
   </div>
   <div class="header-right">
     <div id="audioWarning" style="background:#3a2f00;border:1px solid #ffc107;border-radius:8px;padding:6px 12px;font-size:0.78rem;color:#ffc107;cursor:pointer;" onclick="unlockAudio()" title="Click to enable sound">
@@ -869,7 +913,9 @@ async function initSupabase() {
   try {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Load today's orders
+    // Load menu first (needed for stock toggles + edit modal)
+    await loadMenuFromSupabase();
+
     const today = new Date();
     today.setHours(0,0,0,0);
     await loadStoreStatus();
@@ -913,6 +959,9 @@ async function initSupabase() {
     }
   });
 
+  // Subscribe to menu changes AFTER removeAllChannels (so it isn't killed)
+    subscribeMenuChanges();
+
   } catch(e) { console.error('Supabase error:', e); }
 }
 
@@ -940,20 +989,58 @@ function receiveOrder(orderData) {
 // STATUS CHANGE
 // ═══════════════════════════════════════════
 let chimeVolume = 0.5;
-const MENU_ITEMS = [
-  { id:1, name:'Avocado Sourdough Toast' },
-  { id:2, name:'Fluffy Ricotta Pancakes' },
-  { id:3, name:'Green Shakshuka' },
-  { id:4, name:'Pesto Pasta al Verde' },
-  { id:5, name:'The Big Green Bowl' },
-  { id:6, name:'Margherita Rustica' },
-  { id:7, name:'Single Origin Espresso' },
-  { id:8, name:'Matcha Latte' },
-  { id:9, name:'Garden Green Smoothie' },
-  { id:10, name:'Tiramisu Classico' },
-  { id:11, name:'Pistachio Panna Cotta' },
-  { id:12, name:'Dark Choco Fondant' },
+// ── Dynamic menu (loaded from Supabase) ──
+let MENU_ITEMS = [];
+let FULL_MENU  = [];
+
+const DEFAULT_MENU = [
+  { id:1,  name:'Avocado Sourdough Toast', emoji:'🥑', price:180 },
+  { id:2,  name:'Fluffy Ricotta Pancakes', emoji:'🥞', price:220 },
+  { id:3,  name:'Green Shakshuka',          emoji:'🍳', price:200 },
+  { id:4,  name:'Pesto Pasta al Verde',     emoji:'🍝', price:280 },
+  { id:5,  name:'The Big Green Bowl',       emoji:'🥗', price:250 },
+  { id:6,  name:'Margherita Rustica',       emoji:'🍕', price:300 },
+  { id:7,  name:'Single Origin Espresso',  emoji:'☕', price:90  },
+  { id:8,  name:'Matcha Latte',            emoji:'🍵', price:160 },
+  { id:9,  name:'Garden Green Smoothie',   emoji:'🥤', price:140 },
+  { id:10, name:'Tiramisu Classico',       emoji:'🍮', price:180 },
+  { id:11, name:'Pistachio Panna Cotta',   emoji:'🍰', price:160 },
+  { id:12, name:'Dark Choco Fondant',      emoji:'🍫', price:200 }
 ];
+
+function applyMenuData(data) {
+  if (!data || !data.items) return;
+  MENU_ITEMS = data.items.map(i => ({ id:parseInt(i.id), name:i.name, emoji:i.emoji||'🍽️', price:i.price }));
+  FULL_MENU  = [...MENU_ITEMS];
+}
+
+async function loadMenuFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient.from('settings').select('value').eq('key','menu_data').single();
+    if (!error && data && data.value) {
+      applyMenuData(JSON.parse(data.value));
+    } else {
+      applyMenuData({ items: DEFAULT_MENU });
+    }
+  } catch(e) { applyMenuData({ items: DEFAULT_MENU }); }
+}
+
+function subscribeMenuChanges() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('kitchen-menu-changes')
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'settings', filter:'key=eq.menu_data' }, (payload) => {
+      try {
+        applyMenuData(JSON.parse(payload.new.value));
+        renderStockToggles();
+        // Refresh edit modal dropdown if currently open
+        const modal = document.getElementById('editOrderModal');
+        if (modal && modal.style.display === 'flex') refreshEditDropdown();
+      } catch(e) {}
+    })
+    .subscribe();
+}
 let outOfStock = [];
 let storeOpen = true;
 
@@ -967,7 +1054,8 @@ async function loadOutOfStock() {
 }
 
 function renderStockToggles() {
-  document.getElementById('stockToggles').innerHTML = MENU_ITEMS.map(item => {
+  const items = MENU_ITEMS.length > 0 ? MENU_ITEMS : DEFAULT_MENU;
+  document.getElementById('stockToggles').innerHTML = items.map(item => {
     const oos = outOfStock.includes(item.id);
     return `
       <button onclick="toggleStock(${item.id})"
@@ -1444,20 +1532,58 @@ let _editOrderId = null;
 let _editItems = [];
 
 // Full menu with emoji + price (must match order page MENU array)
-const FULL_MENU = [
-  { id:1,  name:'Avocado Sourdough Toast',  emoji:'🥑', price:320 },
-  { id:2,  name:'Fluffy Ricotta Pancakes',  emoji:'🥞', price:290 },
-  { id:3,  name:'Green Shakshuka',           emoji:'🍳', price:340 },
-  { id:4,  name:'Pesto Pasta al Verde',      emoji:'🍝', price:380 },
-  { id:5,  name:'The Big Green Bowl',        emoji:'🥗', price:420 },
-  { id:6,  name:'Margherita Rustica',        emoji:'🍕', price:460 },
-  { id:7,  name:'Single Origin Espresso',    emoji:'☕', price:120 },
-  { id:8,  name:'Matcha Latte',              emoji:'🍵', price:180 },
-  { id:9,  name:'Garden Green Smoothie',     emoji:'🥤', price:220 },
-  { id:10, name:'Tiramisu Classico',         emoji:'🍮', price:260 },
-  { id:11, name:'Pistachio Panna Cotta',     emoji:'🍨', price:240 },
-  { id:12, name:'Dark Choco Fondant',        emoji:'🍫', price:280 },
+// ── Dynamic menu (loaded from Supabase) ──
+let MENU_ITEMS = [];
+let FULL_MENU  = [];
+
+const DEFAULT_MENU = [
+  { id:1,  name:'Avocado Sourdough Toast', emoji:'🥑', price:180 },
+  { id:2,  name:'Fluffy Ricotta Pancakes', emoji:'🥞', price:220 },
+  { id:3,  name:'Green Shakshuka',          emoji:'🍳', price:200 },
+  { id:4,  name:'Pesto Pasta al Verde',     emoji:'🍝', price:280 },
+  { id:5,  name:'The Big Green Bowl',       emoji:'🥗', price:250 },
+  { id:6,  name:'Margherita Rustica',       emoji:'🍕', price:300 },
+  { id:7,  name:'Single Origin Espresso',  emoji:'☕', price:90  },
+  { id:8,  name:'Matcha Latte',            emoji:'🍵', price:160 },
+  { id:9,  name:'Garden Green Smoothie',   emoji:'🥤', price:140 },
+  { id:10, name:'Tiramisu Classico',       emoji:'🍮', price:180 },
+  { id:11, name:'Pistachio Panna Cotta',   emoji:'🍰', price:160 },
+  { id:12, name:'Dark Choco Fondant',      emoji:'🍫', price:200 }
 ];
+
+function applyMenuData(data) {
+  if (!data || !data.items) return;
+  MENU_ITEMS = data.items.map(i => ({ id:parseInt(i.id), name:i.name, emoji:i.emoji||'🍽️', price:i.price }));
+  FULL_MENU  = [...MENU_ITEMS];
+}
+
+async function loadMenuFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient.from('settings').select('value').eq('key','menu_data').single();
+    if (!error && data && data.value) {
+      applyMenuData(JSON.parse(data.value));
+    } else {
+      applyMenuData({ items: DEFAULT_MENU });
+    }
+  } catch(e) { applyMenuData({ items: DEFAULT_MENU }); }
+}
+
+function subscribeMenuChanges() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('kitchen-menu-changes')
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'settings', filter:'key=eq.menu_data' }, (payload) => {
+      try {
+        applyMenuData(JSON.parse(payload.new.value));
+        renderStockToggles();
+        // Refresh edit modal dropdown if currently open
+        const modal = document.getElementById('editOrderModal');
+        if (modal && modal.style.display === 'flex') refreshEditDropdown();
+      } catch(e) {}
+    })
+    .subscribe();
+}
 
 function openEditModal(orderId) {
   const order = orders.find(o => o.order_id === orderId);
@@ -1467,10 +1593,7 @@ function openEditModal(orderId) {
 
   document.getElementById('editOrderId').textContent = orderId + ' · Table ' + order.table_no;
 
-  // Populate add-item dropdown
-  const sel = document.getElementById('addItemSelect');
-  sel.innerHTML = '<option value="">— Select item —</option>' +
-    FULL_MENU.map(m => `<option value="${m.id}">${m.emoji} ${m.name} — ₹${m.price}</option>`).join('');
+  refreshEditDropdown();
 
   renderEditItems();
   document.getElementById('editOrderModal').style.display = 'flex';
@@ -1480,6 +1603,13 @@ function closeEditModal() {
   document.getElementById('editOrderModal').style.display = 'none';
   _editOrderId = null;
   _editItems = [];
+}
+
+function refreshEditDropdown() {
+  const menuSource = FULL_MENU.length > 0 ? FULL_MENU : DEFAULT_MENU;
+  const sel = document.getElementById('addItemSelect');
+  sel.innerHTML = '<option value="">— Select item —</option>' +
+    menuSource.map(m => `<option value="${m.id}">${m.emoji||'🍽️'} ${m.name} — ₹${m.price}</option>`).join('');
 }
 
 function renderEditItems() {
@@ -1516,7 +1646,8 @@ function addItemToEdit() {
   const sel = document.getElementById('addItemSelect');
   const menuId = parseInt(sel.value);
   if (!menuId) return;
-  const menuItem = FULL_MENU.find(m => m.id === menuId);
+  const menuSource = FULL_MENU.length > 0 ? FULL_MENU : DEFAULT_MENU;
+  const menuItem = menuSource.find(m => m.id === menuId);
   if (!menuItem) return;
 
   const existing = _editItems.find(i => i.name === menuItem.name);
