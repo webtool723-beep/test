@@ -1531,59 +1531,6 @@ async function requestNotifPermission() {
 let _editOrderId = null;
 let _editItems = [];
 
-// Full menu with emoji + price (must match order page MENU array)
-// ── Dynamic menu (loaded from Supabase) ──
-let MENU_ITEMS = [];
-let FULL_MENU  = [];
-
-const DEFAULT_MENU = [
-  { id:1,  name:'Avocado Sourdough Toast', emoji:'🥑', price:180 },
-  { id:2,  name:'Fluffy Ricotta Pancakes', emoji:'🥞', price:220 },
-  { id:3,  name:'Green Shakshuka',          emoji:'🍳', price:200 },
-  { id:4,  name:'Pesto Pasta al Verde',     emoji:'🍝', price:280 },
-  { id:5,  name:'The Big Green Bowl',       emoji:'🥗', price:250 },
-  { id:6,  name:'Margherita Rustica',       emoji:'🍕', price:300 },
-  { id:7,  name:'Single Origin Espresso',  emoji:'☕', price:90  },
-  { id:8,  name:'Matcha Latte',            emoji:'🍵', price:160 },
-  { id:9,  name:'Garden Green Smoothie',   emoji:'🥤', price:140 },
-  { id:10, name:'Tiramisu Classico',       emoji:'🍮', price:180 },
-  { id:11, name:'Pistachio Panna Cotta',   emoji:'🍰', price:160 },
-  { id:12, name:'Dark Choco Fondant',      emoji:'🍫', price:200 }
-];
-
-function applyMenuData(data) {
-  if (!data || !data.items) return;
-  MENU_ITEMS = data.items.map(i => ({ id:parseInt(i.id), name:i.name, emoji:i.emoji||'🍽️', price:i.price }));
-  FULL_MENU  = [...MENU_ITEMS];
-}
-
-async function loadMenuFromSupabase() {
-  if (!supabaseClient) return;
-  try {
-    const { data, error } = await supabaseClient.from('settings').select('value').eq('key','menu_data').single();
-    if (!error && data && data.value) {
-      applyMenuData(JSON.parse(data.value));
-    } else {
-      applyMenuData({ items: DEFAULT_MENU });
-    }
-  } catch(e) { applyMenuData({ items: DEFAULT_MENU }); }
-}
-
-function subscribeMenuChanges() {
-  if (!supabaseClient) return;
-  supabaseClient
-    .channel('kitchen-menu-changes')
-    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'settings', filter:'key=eq.menu_data' }, (payload) => {
-      try {
-        applyMenuData(JSON.parse(payload.new.value));
-        renderStockToggles();
-        // Refresh edit modal dropdown if currently open
-        const modal = document.getElementById('editOrderModal');
-        if (modal && modal.style.display === 'flex') refreshEditDropdown();
-      } catch(e) {}
-    })
-    .subscribe();
-}
 
 function openEditModal(orderId) {
   const order = orders.find(o => o.order_id === orderId);
