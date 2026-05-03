@@ -1293,23 +1293,112 @@ function closeSummary() {
 }
 
 function exportToExcel() {
-  if (orders.length === 0) {
-    alert('No orders to export.');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  document.getElementById('exportFromDate').value = todayStr;
+  document.getElementById('exportToDate').value   = todayStr;
+  document.getElementById('exportStatusMsg').textContent = '';
+  document.getElementById('exportRangeModal').style.display = 'flex';
+}
+
+function closeExportModal() {
+  document.getElementById('exportRangeModal').style.display = 'none';
+}
+
+function setExportRange(range) {
+  const today = new Date();
+  const fmt = d => d.toISOString().slice(0, 10);
+  let from, to;
+  if (range === 'today') {
+    from = to = fmt(today);
+  } else if (range === 'yesterday') {
+    const y = new Date(today); y.setDate(y.getDate() - 1);
+    from = to = fmt(y);
+  } else if (range === 'week') {
+    const w = new Date(today); w.setDate(w.getDate() - 6);
+    from = fmt(w); to = fmt(today);
+  } else if (range === 'month') {
+    const m = new Date(today.getFullYear(), today.getMonth(), 1);
+    from = fmt(m); to = fmt(today);
+  } else if (range === 'all') {
+    from = '2024-01-01'; to = fmt(today);
+  }
+  document.getElementById('exportFromDate').value = from;
+  document.getElementById('exportToDate').value   = to;
+  document.getElementById('exportStatusMsg').textContent = '';
+}
+
+async function runExport() {
+  const fromVal  = document.getElementById('exportFromDate').value;
+  const toVal    = document.getElementById('exportToDate').value;
+  const statusEl = document.getElementById('exportStatusMsg');
+
+  if (!fromVal || !toVal) {
+    statusEl.style.color = '#f44336';
+    statusEl.textContent = '⚠️ Please select both dates.';
+    return;
+  }
+  if (fromVal > toVal) {
+    statusEl.style.color = '#f44336';
+    statusEl.textContent = '⚠️ "From" date cannot be after "To" date.';
     return;
   }
 
-  const rows = orders.map((o, index) => {
-    const itemsList = Array.isArray(o.items)
-      ? o.items.map(i => `${i.name} x${i.qty}`).join(', ')
-      : '';
+  const btn = document.getElementById('exportRunBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching…';
+  statusEl.style.color = '#81c784';
+  statusEl.textContent = 'Fetching orders from database…';
+
+  const fromISO = new Date(fromVal + 'T00:00:00').toISOString();
+  const toISO   = new Date(toVal   + 'T23:59:59').toISOString();
+
+  let exportData = [];
+
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient
+      .from('orders')
+      .select('*')
+      .gte('created_at', fromISO)
+      .lte('created_at', toISO)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      statusEl.style.color = '#f44336';
+      statusEl.textContent = '❌ Error: ' + error.message;
+      btn.disabled = false;
+      btn.textContent = '📥 Export';
+      return;
+    }
+    exportData = data || [];
+  } else {
+    exportData = orders.filter(o => o.created_at >= fromISO && o.created_at <= toISO);
+  }
+
+  if (exportData.length === 0) {
+    statusEl.style.color = '#ffc107';
+    statusEl.textContent = '⚠️ No orders found in this date range.';
+    btn.disabled = false;
+    btn.textContent = '📥 Export';
+    return;
+  }
+
+  const rows = exportData.map((o, index) => {
+    const itemsList = Array.isArray(o.items) ? o.items.map(i => `${i.name} x${i.qty}`).join(', ') : '';
     const dt = new Date(o.created_at);
+    const subtotal = o.total || 0;
+    const cgst = Math.round(subtotal * 0.025 * 100) / 100;
+    const sgst = cgst;
     return {
       'S.No': index + 1,
       'Order ID': o.order_id,
       'Table No': o.table_no,
+      'Customer': o.customer_name || 'N/A',
       'Phone No': o.phone_no || 'N/A',
       'Items': itemsList,
-      'Total (₹)': o.total,
+      'Subtotal (₹)': subtotal,
+      'CGST (₹)': cgst,
+      'SGST (₹)': sgst,
+      'Grand Total (₹)': subtotal + cgst + sgst,
       'Note': o.note || '',
       'Status': o.status,
       'Date': dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
@@ -1318,11 +1407,20 @@ function exportToExcel() {
   });
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = Object.keys(rows[0]).map(k => ({
+    wch: Math.max(k.length, ...rows.map(r => String(r[k] || '').length)) + 2
+  }));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
 
-  const today = new Date().toLocaleDateString('en-IN').replace(/\//g, '-');
-  XLSX.writeFile(workbook, `GreenCucina-Orders-${today}.xlsx`);
+  const label = fromVal === toVal ? fromVal : `${fromVal}_to_${toVal}`;
+  XLSX.writeFile(workbook, `GreenCucina-Orders-${label}.xlsx`);
+
+  statusEl.style.color = '#66bb6a';
+  statusEl.textContent = `✅ Exported ${exportData.length} order(s)!`;
+  btn.disabled = false;
+  btn.textContent = '📥 Export';
+  setTimeout(closeExportModal, 1800);
 }
 
 document.getElementById('volumeSlider').addEventListener('input', function() {
@@ -1455,6 +1553,40 @@ async function saveEditedOrder() {
   showToast('✏️', `Order ${_editOrderId}`, 'Order items updated');
 }
 </script>
+
+<!-- ═══ EXPORT DATE RANGE MODAL ═══ -->
+<div id="exportRangeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:500;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:#162016;border:1px solid #2a3d2a;border-radius:20px;padding:28px;max-width:420px;width:100%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div style="font-family:'Playfair Display',serif;font-size:1.2rem;color:#e8f5e9;">📥 Export Orders</div>
+      <button onclick="closeExportModal()" style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:50%;width:32px;height:32px;color:#81c784;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <div style="font-size:0.78rem;color:#4a6b4a;margin-bottom:20px;">Select a date range to export all orders from Supabase history.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+      <div>
+        <div style="font-size:0.75rem;color:#81c784;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">From Date</div>
+        <input type="date" id="exportFromDate" style="width:100%;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:8px;padding:10px 12px;color:#e8f5e9;font-family:'DM Mono',monospace;font-size:0.85rem;outline:none;color-scheme:dark;"/>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;color:#81c784;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">To Date</div>
+        <input type="date" id="exportToDate" style="width:100%;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:8px;padding:10px 12px;color:#e8f5e9;font-family:'DM Mono',monospace;font-size:0.85rem;outline:none;color-scheme:dark;"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+      <button onclick="setExportRange('today')"     style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:6px;padding:5px 12px;color:#81c784;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">Today</button>
+      <button onclick="setExportRange('yesterday')" style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:6px;padding:5px 12px;color:#81c784;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">Yesterday</button>
+      <button onclick="setExportRange('week')"      style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:6px;padding:5px 12px;color:#81c784;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">Last 7 Days</button>
+      <button onclick="setExportRange('month')"     style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:6px;padding:5px 12px;color:#81c784;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">This Month</button>
+      <button onclick="setExportRange('all')"       style="background:#1e2e1e;border:1px solid #2a3d2a;border-radius:6px;padding:5px 12px;color:#ffc107;font-size:0.78rem;cursor:pointer;font-family:'DM Sans',sans-serif;">All Time</button>
+    </div>
+    <div id="exportStatusMsg" style="min-height:18px;font-size:0.82rem;margin-bottom:14px;text-align:center;"></div>
+    <div style="display:flex;gap:10px;">
+      <button id="exportRunBtn" onclick="runExport()" style="flex:1;background:#2d5a2d;border:1px solid #4caf50;border-radius:10px;padding:12px;color:#66bb6a;font-family:'DM Sans',sans-serif;font-weight:600;font-size:0.9rem;cursor:pointer;">📥 Export</button>
+      <button onclick="closeExportModal()" style="flex:1;background:#1e2e1e;border:1px solid #2a3d2a;border-radius:10px;padding:12px;color:#81c784;font-family:'DM Sans',sans-serif;font-size:0.9rem;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+  
 <!-- ═══ EDIT ORDER MODAL ═══ -->
 <div id="editOrderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:500;align-items:center;justify-content:center;padding:24px;">
   <div style="background:#162016;border:1px solid #2a3d2a;border-radius:20px;padding:28px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;">
