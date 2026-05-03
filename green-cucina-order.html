@@ -749,7 +749,9 @@
 <header>
   <div class="logo">
   <span class="logo-icon">🌿</span>
-  <span class="logo-text"> Green <span>Cucina</span></span>
+  <span class="logo-text"> Green <span>Cucina</span> <br>
+  <small>Orders - Powered by  <a href="https://webtool723-beep.github.io/Websites-collection/" style="color: red;">WeCraft Studio</a></small>
+  </span>
 </div>
   <div style="display:flex; align-items:center; gap:8px;">
     <button class="cart-btn header-my-orders" onclick="toggleHistory()" style="background:#2d4a2d;">📋 My Orders</button>
@@ -961,28 +963,93 @@
 // ═══════════════════════════════════════════
 // MENU DATA (from Green Cucina website)
 // ═══════════════════════════════════════════
-const MENU = [
-  // Breakfast
-  { id:1, cat:'Breakfast', emoji:'🥑', name:'Avocado Sourdough Toast', desc:'Smashed avocado, cherry tomatoes, feta & everything-bagel seasoning on house sourdough.', price:180 },
-  { id:2, cat:'Breakfast', emoji:'🥞', name:'Fluffy Ricotta Pancakes', desc:'Light ricotta pancakes with maple syrup, fresh berries & whipped cream.', price:220 },
-  { id:3, cat:'Breakfast', emoji:'🍳', name:'Green Shakshuka', desc:'Poached eggs in a vibrant spinach-herb sauce with feta and warm bread.', price:200 },
-  // Mains
-  { id:4, cat:'Mains', emoji:'🍝', name:'Pesto Pasta al Verde', desc:'Fusilli in homemade basil-walnut pesto, sun-dried tomatoes & parmesan shavings.', price:280 },
-  { id:5, cat:'Mains', emoji:'🥗', name:'The Big Green Bowl', desc:'Quinoa, roasted veggies, hummus, pickled red onions & tahini dressing.', price:250 },
-  { id:6, cat:'Mains', emoji:'🍕', name:'Margherita Rustica', desc:'Stone-baked thin-crust pizza with San Marzano tomato, buffalo mozzarella & fresh basil.', price:300 },
-  // Drinks
-  { id:7, cat:'Drinks', emoji:'☕', name:'Single Origin Espresso', desc:'Freshly pulled from Coorg-sourced Arabica beans. Bold, smooth, perfect.', price:90 },
-  { id:8, cat:'Drinks', emoji:'🍵', name:'Matcha Latte', desc:'Ceremonial-grade matcha whisked with steamed oat milk & a hint of honey.', price:160 },
-  { id:9, cat:'Drinks', emoji:'🥤', name:'Garden Green Smoothie', desc:'Spinach, banana, mango, ginger & coconut water — energise your day.', price:140 },
-  // Desserts
-  { id:10, cat:'Desserts', emoji:'🍮', name:'Tiramisu Classico', desc:'Classic Italian tiramisu with mascarpone, espresso-soaked ladyfingers & cocoa dust.', price:180 },
-  { id:11, cat:'Desserts', emoji:'🍰', name:'Pistachio Panna Cotta', desc:'Silky vanilla panna cotta with a pistachio crumble and rose compote.', price:160 },
-  { id:12, cat:'Desserts', emoji:'🍫', name:'Dark Choco Fondant', desc:'Warm 70% dark chocolate lava cake with vanilla bean ice cream & caramel drizzle.', price:200 },
-];
+// ── Dynamic menu (loaded from Supabase) ──
+let MENU = [];
+let CATEGORIES = ['All', 'Favourites'];
+let CAT_ICONS = { All:'🌿', Favourites:'❤️' };
 
-const CATEGORIES = ['All', 'Favourites', 'Breakfast', 'Mains', 'Drinks', 'Desserts'];
-const CAT_ICONS = { All:'🌿', Favourites:'❤️', Breakfast:'🌅', Mains:'🍽️', Drinks:'☕', Desserts:'🍰' };
+const DEFAULT_MENU_DATA = {
+  categories: [
+    { id:'Breakfast', name:'Breakfast', icon:'🌅' },
+    { id:'Mains',     name:'Mains',     icon:'🍽️' },
+    { id:'Drinks',    name:'Drinks',    icon:'☕' },
+    { id:'Desserts',  name:'Desserts',  icon:'🍰' }
+  ],
+  items: [
+    { id:1,  cat:'Breakfast', emoji:'🥑', name:'Avocado Sourdough Toast',  desc:'Smashed avocado, cherry tomatoes, feta & everything-bagel seasoning on house sourdough.', price:180 },
+    { id:2,  cat:'Breakfast', emoji:'🥞', name:'Fluffy Ricotta Pancakes',  desc:'Light ricotta pancakes with maple syrup, fresh berries & whipped cream.', price:220 },
+    { id:3,  cat:'Breakfast', emoji:'🍳', name:'Green Shakshuka',           desc:'Poached eggs in a vibrant spinach-herb sauce with feta and warm bread.', price:200 },
+    { id:4,  cat:'Mains',     emoji:'🍝', name:'Pesto Pasta al Verde',      desc:'Fusilli in homemade basil-walnut pesto, sun-dried tomatoes & parmesan shavings.', price:280 },
+    { id:5,  cat:'Mains',     emoji:'🥗', name:'The Big Green Bowl',        desc:'Quinoa, roasted veggies, hummus, pickled red onions & tahini dressing.', price:250 },
+    { id:6,  cat:'Mains',     emoji:'🍕', name:'Margherita Rustica',        desc:'Stone-baked thin-crust pizza with San Marzano tomato, buffalo mozzarella & fresh basil.', price:300 },
+    { id:7,  cat:'Drinks',   emoji:'☕', name:'Single Origin Espresso',    desc:'Freshly pulled from Coorg-sourced Arabica beans. Bold, smooth, perfect.', price:90 },
+    { id:8,  cat:'Drinks',   emoji:'🍵', name:'Matcha Latte',              desc:'Ceremonial-grade matcha whisked with steamed oat milk & a hint of honey.', price:160 },
+    { id:9,  cat:'Drinks',   emoji:'🥤', name:'Garden Green Smoothie',     desc:'Spinach, banana, mango, ginger & coconut water — energise your day.', price:140 },
+    { id:10, cat:'Desserts', emoji:'🍮', name:'Tiramisu Classico',         desc:'Classic Italian tiramisu with mascarpone, espresso-soaked ladyfingers & cocoa dust.', price:180 },
+    { id:11, cat:'Desserts', emoji:'🍰', name:'Pistachio Panna Cotta',     desc:'Silky vanilla panna cotta with a pistachio crumble and rose compote.', price:160 },
+    { id:12, cat:'Desserts', emoji:'🍫', name:'Dark Choco Fondant',        desc:'Warm 70% dark chocolate lava cake with vanilla bean ice cream & caramel drizzle.', price:200 }
+  ]
+};
 
+function applyMenuData(data) {
+  if (!data || !data.items) return;
+  MENU = data.items.map(i => ({ ...i, id: parseInt(i.id) }));
+  CATEGORIES = ['All', 'Favourites', ...data.categories.map(c => c.name || c.id)];
+  CAT_ICONS = { All:'🌿', Favourites:'❤️' };
+  (data.categories || []).forEach(c => { CAT_ICONS[c.name || c.id] = c.icon || '📁'; });
+  window._catIdToName = {};
+  (data.categories || []).forEach(c => { window._catIdToName[c.id] = c.name || c.id; });
+}
+
+function getItemCatName(item) {
+  return (window._catIdToName && window._catIdToName[item.cat]) || item.cat;
+}
+
+async function loadMenuFromSupabase() {
+  if (!supabaseClient) { applyMenuData(DEFAULT_MENU_DATA); return; }
+  try {
+    const { data, error } = await supabaseClient.from('settings').select('value').eq('key','menu_data').single();
+    if (!error && data && data.value) {
+      applyMenuData(JSON.parse(data.value));
+    } else {
+      applyMenuData(DEFAULT_MENU_DATA);
+    }
+  } catch(e) { applyMenuData(DEFAULT_MENU_DATA); }
+}
+
+function subscribeMenuChanges() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('menu-changes')
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'settings', filter:'key=eq.menu_data' }, async (payload) => {
+      try {
+        applyMenuData(JSON.parse(payload.new.value));
+        Object.keys(cart).forEach(id => {
+          if (!MENU.find(i => i.id === parseInt(id))) delete cart[id];
+        });
+        updateCartUI();
+        renderCategories();
+        renderMenu();
+        await fetchOutOfStock();
+      } catch(e) {}
+    })
+    .subscribe();
+}
+
+// Real-time: kitchen's out-of-stock toggles & store open/close → instant update
+function subscribeStockChanges() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('stock-status-changes')
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'settings', filter:'key=eq.store_status' }, (payload) => {
+      try { OUT_OF_STOCK = JSON.parse(payload.new.out_of_stock || '[]'); } catch(e) { OUT_OF_STOCK = []; }
+      const isOpen = payload.new.value === 'open';
+      const banner = document.getElementById('closedBanner');
+      if (banner) banner.style.display = isOpen ? 'none' : 'block';
+      renderMenu();
+    })
+    .subscribe();
+}
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
@@ -1005,8 +1072,7 @@ let supabaseClient = null;
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  // Check if Supabase is configured
+document.addEventListener('DOMContentLoaded', async () => {
   if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
     document.getElementById('configBanner').style.display = 'block';
   } else {
@@ -1014,19 +1080,26 @@ document.addEventListener('DOMContentLoaded', () => {
       supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     } catch(e) { console.error('Supabase init error:', e); }
   }
+
+  // Load menu from Supabase first (awaited so render is accurate)
+  await loadMenuFromSupabase();
+
   if (supabaseClient) {
+    subscribeMenuChanges();   // live menu updates from admin page
+    subscribeStockChanges();  // live out-of-stock + store status from kitchen
+    await fetchOutOfStock();
+
     function refreshStoreBanner() {
-    checkStoreOpen().then(open => {
-      document.getElementById('closedBanner').style.display = open ? 'none' : 'block';
-    });
+      checkStoreOpen().then(open => {
+        document.getElementById('closedBanner').style.display = open ? 'none' : 'block';
+      });
+    }
+    refreshStoreBanner();
+    setInterval(refreshStoreBanner, 30000);
   }
-  refreshStoreBanner();
-  setInterval(refreshStoreBanner, 30000);
-  }
-  if (supabaseClient) fetchOutOfStock();
+
   renderCategories();
   renderMenu();
-
   loadFavourites();
 });
 
@@ -1065,16 +1138,20 @@ function renderMenu() {
     `;
     return;
   }
-  const cats = activeCategory === 'All' ? ['Breakfast','Mains','Drinks','Desserts'] : [activeCategory];
-  section.innerHTML = cats.map(cat => {
-    const items = MENU.filter(i => i.cat === cat);
-    return `
-      <div class="section-title">${CAT_ICONS[cat]} ${cat}</div>
-      <div class="menu-grid">
-        ${items.map(item => renderCard(item)).join('')}
-      </div>
-    `;
-  }).join('');
+  const catNames = activeCategory === 'All'
+  ? CATEGORIES.filter(c => c !== 'All' && c !== 'Favourites')
+  : [activeCategory];
+
+section.innerHTML = catNames.map(catName => {
+  const items = MENU.filter(i => getItemCatName(i) === catName || i.cat === catName);
+  if (items.length === 0) return '';
+  return `
+    <div class="section-title">${CAT_ICONS[catName] || '📁'} ${catName}</div>
+    <div class="menu-grid">
+      ${items.map(item => renderCard(item)).join('')}
+    </div>
+  `;
+}).join('');
 }
 
 function renderCard(item) {
@@ -1125,7 +1202,8 @@ function changeQty(id, delta) {
 }
 
 function refreshCard(id) {
-  const item = MENU.find(i => i.id === id);
+  const item = MENU.find(i => i.id === parseInt(id));
+  if (!item) return;
   const card = document.getElementById(`card-${id}`);
   if (card) card.outerHTML = renderCard(item);
 }
