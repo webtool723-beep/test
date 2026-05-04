@@ -74,7 +74,9 @@ onAuthStateChanged(auth, async (user) => {
   window.checkVerified = async function() {
     const user = auth.currentUser; if (!user) return;
     await user.reload();
-    if (user.emailVerified) location.reload();
+const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
+    if (user.emailVerified && data?.role === 'admin') location.reload();
+    else document.getElementById('verifyMsg').textContent = '⛔ Access denied. You do not have admin access.';
     else document.getElementById('verifyMsg').textContent = '⚠️ Not verified yet. Check your inbox.';
   };
   window.handleForgotPassword = async function() {
