@@ -28,6 +28,7 @@
 const _roleClient = supabase.createClient('https://bifohqaceaufxlyfwpgp.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM');
 
 onAuthStateChanged(auth, async (user) => {
+    if (!user) { showLoginBox(); return; }
       const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
       if (!data) await _roleClient.from('user_roles').insert({ email: user.email, role: 'customer' });
       if (user && user.emailVerified && data?.role === 'admin') {
