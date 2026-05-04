@@ -44,11 +44,12 @@ onAuthStateChanged(auth, async (user) => {
       showLoginBox();
     }
   });
-  function showLoginBox() {
+function showLoginBox() {
     document.getElementById('authOverlay').style.display = 'flex';
     document.getElementById('appShell').style.display = 'none';
     document.getElementById('loginBox').style.display = 'block';
     document.getElementById('verifyBox').style.display = 'none';
+    document.getElementById('restrictBox').style.display = 'none';
   }
   function showRestrictedScreen() {
     document.getElementById('authOverlay').style.display = 'flex';
