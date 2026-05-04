@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Green Cucina — Kitchen Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, sendEmailVerification, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCaetYJOBQoL0c6Y1DdJN1m-PMxpCcuRc0",
+    authDomain: "green-cucina.firebaseapp.com",
+    projectId: "green-cucina",
+    storageBucket: "green-cucina.firebasestorage.app",
+    messagingSenderId: "810215846761",
+    appId: "1:810215846761:web:201d72b7f2aea201dbc3f8"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  window._firebaseAuth = auth;
+  window._fbSignIn = (email, password) => signInWithEmailAndPassword(auth, email, password);
+  window._fbSignOut = () => signOut(auth);
+  window._fbSendVerification = (user) => sendEmailVerification(user);
+  window._fbPasswordReset = (email) => sendPasswordResetEmail(auth, email);
+
+  const _roleClient = supabase.createClient('https://bifohqaceaufxlyfwpgp.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM');
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
+      if (!data) await _roleClient.from('user_roles').insert({ email: user.email, role: 'customer' });
+      if (user.emailVerified && data?.role === 'admin') {
+        document.getElementById('authOverlay').style.display = 'none';
+        document.getElementById('appShell').style.display    = 'block';
+        document.getElementById('authUserEmail').textContent = user.email;
+        if (typeof window.appInit === 'function') window.appInit();
+      } else if (user.emailVerified) {
+        showRestrictedScreen();
+      } else {
+        showVerifyScreen(user);
+      }
+  }});
+
+  function showLoginScreen() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'block';
+    document.getElementById('verifyBox').style.display   = 'none';
+    document.getElementById('restrictBox').style.display = 'none';
+  }
+  function showRestrictedScreen() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'none';
+    document.getElementById('verifyBox').style.display   = 'none';
+    document.getElementById('restrictBox').style.display = 'block';
+  }
+
+  function showVerifyScreen(user) {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'none';
+    document.getElementById('verifyBox').style.display   = 'block';
+    document.getElementById('verifyEmail').textContent   = user.email;
+  }
+
+  window.handleLogin = async function() {
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl    = document.getElementById('loginError');
+    const btn      = document.getElementById('loginBtn');
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const cred = await window._fbSignIn(email, password);
+      if (!cred.user.emailVerified) {
+        await window._fbSendVerification(cred.user);
+        showVerifyScreen(cred.user);
+      }
+    } catch (e) {
+      errEl.textContent = friendlyError(e.code);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+  };
+
+  window.resendVerification = async function() {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await window._fbSendVerification(user);
+      document.getElementById('verifyMsg').textContent = 'Verification email resent! Check your inbox.';
+    } catch(e) {
+      document.getElementById('verifyMsg').textContent = '⚠ ' + friendlyError(e.code);
+    }
+  };
+
+  window.checkVerified = async function() {
+    const user = auth.currentUser;
+    if (!user) return;
+    await user.reload();
+    const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
+    if (user.emailVerified && data?.role === 'admin') {
+      document.getElementById('authOverlay').style.display = 'none';
+      document.getElementById('appShell').style.display    = 'block';
+      document.getElementById('authUserEmail').textContent = user.email;
+      if (typeof window.appInit === 'function') window.appInit();
+    } else {
+      document.getElementById('verifyMsg').textContent = 'Email not verified yet. Please check your inbox.';
+    }
+  };
+
+  window.handleForgotPassword = async function() {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) { document.getElementById('loginError').textContent = 'Enter your email first.'; return; }
+    try {
+      await window._fbPasswordReset(email);
+      document.getElementById('loginError').style.color = '#34d399';
+      document.getElementById('loginError').textContent = 'Password reset email sent!';
+    } catch(e) {
+      document.getElementById('loginError').style.color = '#f87171';
+      document.getElementById('loginError').textContent = friendlyError(e.code);
+    }
+  };
+
+  window.handleSignOut = async function() {
+    await window._fbSignOut();
+  };
+
+  function friendlyError(code) {
+    const map = {
+      'auth/user-not-found':       'No account found with this email.',
+      'auth/wrong-password':       'Incorrect password.',
+      'auth/invalid-email':        'Invalid email address.',
+      'auth/too-many-requests':    'Too many attempts. Please wait.',
+      'auth/invalid-credential':   'Invalid email or password.',
+      'auth/network-request-failed': 'Network error. Check your internet.',
+    };
+    return map[code] || 'Something went wrong. Please try again.';
+  }
+</script>
+<style>
+  :root {
+    --bg-primary: #09090b;
+    --bg-secondary: #111114;
+    --bg-card: #16161a;
+    --bg-elevated: #1c1c21;
+    --bg-hover: #232329;
+    --border: #27272a;
+    --border-light: #3f3f46;
+    --accent: #10b981;
+    --accent-hover: #059669;
+    --accent-subtle: rgba(16, 185, 129, 0.1);
+    --accent-glow: rgba(16, 185, 129, 0.15);
+    --gold: #f59e0b;
+    --gold-subtle: rgba(245, 158, 11, 0.1);
+    --red: #ef4444;
+    --red-subtle: rgba(239, 68, 68, 0.1);
+    --blue: #3b82f6;
+    --blue-subtle: rgba(59, 130, 246, 0.1);
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-lg: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* HEADER */
+  header {
+    background: rgba(17, 17, 20, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent), #059669);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+  .logo-text h1 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .logo-text span {
+    color: var(--accent);
+  }
+  .logo-text small {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--accent-subtle);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(16,185,129,0.4);
+    animation: pulse 2s infinite;
+  }
+  .live-dot.offline { background: var(--red); animation: none; box-shadow: none; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+  }
+  .clock {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  .header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+  .header-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-light);
+    color: var(--text-primary);
+  }
+  .user-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+  }
+  .user-pill span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-pill button {
+    background: var(--red-subtle);
+    border: none;
+    border-radius: 50px;
+    padding: 5px 10px;
+    color: var(--red);
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+  .user-pill button:hover {
+    background: rgba(239, 68, 68, 0.2);
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 10px;
+    padding: 16px 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .stats-bar::-webkit-scrollbar { display: none; }
+  .stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    min-width: 160px;
+    transition: all 0.2s;
+  }
+  .stat-card.clickable { cursor: pointer; }
+  .stat-card.clickable:hover {
+    border-color: var(--accent);
+    background: var(--bg-elevated);
+  }
+  .stat-card.active-filter {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+  .stat-icon.pending { background: var(--gold-subtle); }
+  .stat-icon.preparing { background: var(--blue-subtle); }
+  .stat-icon.done { background: var(--accent-subtle); }
+  .stat-icon.rejected { background: var(--red-subtle); }
+  .stat-icon.revenue { background: var(--accent-subtle); }
+  .stat-info { flex: 1; }
+  .stat-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+  .stat-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.02em;
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    padding: 0 24px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 240px;
+    position: relative;
+  }
+  .search-box input {
+    width: 100%;
+    padding: 10px 16px 10px 42px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .search-box input::placeholder { color: var(--text-muted); }
+  .search-box input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .search-box .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  /* FILTER TABS */
+  .filter-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 0 24px 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .ftab {
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .ftab:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-light);
+  }
+  .ftab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* STOCK TOGGLES */
+  .stock-section {
+    padding: 0 24px 16px;
+  }
+  .stock-section-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .stock-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ORDERS GRID */
+  .orders-container {
+    padding: 0 24px 40px;
+  }
+  .orders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  /* EMPTY STATE */
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 24px;
+  }
+  .empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    background: var(--bg-elevated);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    opacity: 0.5;
+  }
+  .empty-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .empty-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  /* ORDER CARD */
+  .order-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all 0.2s;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .order-card:hover {
+    border-color: var(--border-light);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+  .order-card.status-pending { border-top: 3px solid var(--gold); }
+  .order-card.status-preparing { border-top: 3px solid var(--blue); }
+  .order-card.status-done { border-top: 3px solid var(--accent); opacity: 0.8; }
+  .order-card.status-rejected { border-top: 3px solid var(--red); opacity: 0.6; }
+
+  .card-header {
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .order-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  .order-table {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .order-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .order-meta-item {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .status-badge {
+    padding: 5px 10px;
+    border-radius: 50px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .badge-pending { background: var(--gold-subtle); color: var(--gold); }
+  .badge-preparing { background: var(--blue-subtle); color: var(--blue); }
+  .badge-done { background: var(--accent-subtle); color: var(--accent); }
+  .badge-rejected { background: var(--red-subtle); color: var(--red); }
+
+  .card-items {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .order-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 0.85rem;
+  }
+  .item-emoji {
+    width: 28px;
+    height: 28px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+  }
+  .item-name { flex: 1; color: var(--text-primary); font-weight: 500; }
+  .item-qty {
+    padding: 3px 8px;
+    background: var(--bg-elevated);
+    border-radius: 50px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .order-note {
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    border-bottom: 1px solid var(--border);
+    background: var(--gold-subtle);
+  }
+  .order-note span { color: var(--gold); font-weight: 600; font-style: normal; }
+
+  .card-footer {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .order-total {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .action-btn {
+    border: 1px solid;
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: none;
+  }
+  .btn-accept {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--accent);
+  }
+  .btn-accept:hover { background: var(--accent-subtle); border-color: var(--accent); }
+  .btn-preparing {
+    border-color: rgba(59, 130, 246, 0.3);
+    color: var(--blue);
+  }
+  .btn-preparing:hover { background: var(--blue-subtle); border-color: var(--blue); }
+  .btn-done {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--accent);
+  }
+  .btn-done:hover { background: var(--accent-subtle); border-color: var(--accent); }
+  .btn-reject {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--red);
+  }
+  .btn-reject:hover { background: var(--red-subtle); border-color: var(--red); }
+
+  /* TOAST */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    min-width: 280px;
+    max-width: 360px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    animation: toastIn 0.3s ease;
+    box-shadow: var(--shadow-lg);
+    pointer-events: all;
+  }
+  .toast.new-order { border-left: 3px solid var(--gold); }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .toast-icon { font-size: 1.3rem; }
+  .toast-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+  .toast-msg { font-size: 0.78rem; color: var(--text-muted); }
+
+  /* BANNER */
+  .new-order-banner {
+    display: none;
+    background: var(--gold-subtle);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 18px;
+    margin: 0 24px 16px;
+    font-size: 0.85rem;
+    color: var(--gold);
+    align-items: center;
+    gap: 10px;
+    animation: bannerPulse 1.5s ease-in-out 3;
+  }
+  .new-order-banner.show { display: flex; }
+  @keyframes bannerPulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* CONFIG BANNER */
+  .config-banner {
+    background: var(--gold-subtle);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    margin: 16px 24px;
+    font-size: 0.82rem;
+    color: var(--gold);
+    line-height: 1.7;
+  }
+  .config-banner code {
+    background: rgba(245, 158, 11, 0.1);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.78rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* MODALS */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 400;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 28px;
+    max-width: 440px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .modal-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .modal-close {
+    width: 32px;
+    height: 32px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .modal-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  /* SUMMARY GRID */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .summary-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  .summary-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* AUTH OVERLAY */
+  #authOverlay {
+    background: linear-gradient(135deg, #09090b 0%, #111114 60%, #16161a 100%);
+  }
+  .auth-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 400px;
+    margin: 24px;
+  }
+  .auth-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .auth-logo-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--accent), #059669);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    margin: 0 auto 16px;
+  }
+  .auth-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .auth-title span { color: var(--accent); }
+  .auth-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .auth-input-group { margin-bottom: 14px; }
+  .auth-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .auth-input {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .auth-input::placeholder { color: var(--text-muted); }
+  .auth-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .auth-btn {
+    width: 100%;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 13px;
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .auth-btn:hover { background: var(--accent-hover); }
+  .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-info {
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--gold-subtle);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    color: var(--gold);
+    line-height: 1.6;
+  }
+
+  /* PRINT */
+  @page {
+    size: auto;
+    margin: 14mm 12mm;
+  }
+  @media print {
+    html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
+    body > * { display: none !important; }
+    #printSlip { display: block !important; }
+  }
+  #printSlip {
+    display: none;
+    font-family: 'Inter', sans-serif;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    color: #000;
+    background: #fff;
+  }
+  #printSlip h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 2px; }
+  #printSlip .ps-sub { font-size: 0.75rem; color: #555; margin-bottom: 14px; }
+  #printSlip .ps-divider { border: none; border-top: 1px dashed #000; margin: 10px 0; }
+  #printSlip .ps-row { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 5px; }
+  #printSlip .ps-meta { font-size: 0.78rem; margin-bottom: 4px; }
+  #printSlip .ps-total { font-weight: 700; font-size: 0.95rem; }
+  #printSlip .ps-foot { text-align: center; font-size: 0.75rem; color: #555; margin-top: 14px; }
+
+  @media (max-width: 640px) {
+    header { padding: 10px 16px; }
+    .header-right { gap: 8px; }
+    .clock, .live-indicator { display: none; }
+    .stats-bar, .toolbar, .filter-tabs, .stock-section, .orders-container { padding-left: 16px; padding-right: 16px; }
+    .orders-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<script>
+  const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM';
+</script>
+
+<!-- AUTH OVERLAY -->
+<div id="authOverlay" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;z-index:9999;">
+  <div id="loginBox" class="auth-box">
+    <div class="auth-header">
+      <div class="auth-logo-icon">🌿</div>
+      <div class="auth-title">Green <span>Cucina</span></div>
+      <div class="auth-subtitle">Kitchen Dashboard</div>
+    </div>
+    <div class="auth-input-group">
+      <label class="auth-label">Email</label>
+      <input id="loginEmail" type="email" placeholder="you@greencucina.com" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()" class="auth-input"/>
+    </div>
+    <div class="auth-input-group">
+      <label class="auth-label">Password</label>
+      <input id="loginPassword" type="password" placeholder="Enter your password" onkeydown="if(event.key==='Enter')handleLogin()" class="auth-input"/>
+    </div>
+    <div style="text-align:right;margin-bottom:20px;">
+      <button onclick="handleForgotPassword()" style="background:none;border:none;color:var(--text-muted);font-size:0.78rem;cursor:pointer;font-family:'Inter',sans-serif;">
+        Forgot password?
+      </button>
+    </div>
+    <div id="loginError" style="font-size:0.82rem;text-align:center;min-height:20px;margin-bottom:12px;color:var(--red);"></div>
+    <button id="loginBtn" onclick="handleLogin()" class="auth-btn">Sign In</button>
+    <div class="auth-info">
+      🔒 Only verified email accounts can access the dashboard.
+    </div>
+  </div>
+
+  <div id="verifyBox" class="auth-box" style="display:none;text-align:center;">
+    <div style="font-size:3rem;margin-bottom:16px;">📧</div>
+    <div class="auth-title" style="margin-bottom:8px;">Verify Your Email</div>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">We sent a link to:</div>
+    <div id="verifyEmail" style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--gold);margin-bottom:20px;word-break:break-all;"></div>
+    <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:24px;line-height:1.6;">
+      Click the link in the email, then press <strong style="color:var(--text-secondary);">I've Verified</strong>.
+    </div>
+    <button onclick="checkVerified()" class="auth-btn" style="margin-bottom:12px;">I've Verified My Email</button>
+    <button onclick="resendVerification()" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:0.85rem;cursor:pointer;margin-bottom:12px;">Resend Verification Email</button>
+    <button onclick="handleSignOut()" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:underline;">Back to Login</button>
+    <div id="verifyMsg" style="margin-top:14px;font-size:0.82rem;color:var(--text-secondary);min-height:20px;"></div>
+</div>
+
+  <div id="restrictBox" class="auth-box" style="display:none;text-align:center;">
+    <div style="font-size:3rem;margin-bottom:16px;">🚫</div>
+    <div class="auth-title" style="margin-bottom:8px;">Restricted Access</div>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.6;">
+      This page is for verified staff only.<br/>You do not have permission to access this area.
+    </div>
+    <button onclick="handleSignOut()" class="auth-btn">Back to Login</button>
+  </div>
+
+</div>
+
+<!-- APP SHELL -->
+<div id="appShell" style="display:none;">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🌿</div>
+    <div class="logo-text">
+      <h1>Green <span>Cucina</span></h1>
+      <small>Kitchen Dashboard</small>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="audioWarning" style="background:var(--gold-subtle);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-sm);padding:6px 12px;font-size:0.75rem;color:var(--gold);cursor:pointer;" onclick="unlockAudio()" title="Click to enable sound">
+      🔇 Enable sound
+    </div>
+    <div class="live-indicator">
+      <div class="live-dot" id="liveDot"></div>
+      <span id="liveStatus">Live</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+    <button id="storeToggleBtn" onclick="toggleStoreStatus()" style="border:none;border-radius:var(--radius-sm);padding:8px 14px;font-family:'Inter',sans-serif;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+      Loading...
+    </button>
+    <button class="header-btn" onclick="exportToExcel()">📥 Export</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5" style="width:60px;accent-color:var(--accent);cursor:pointer;"/>
+      <span style="font-size:0.7rem;color:var(--text-muted);" id="volumeLabel">50%</span>
+    </div>
+    <button class="header-btn" onclick="showDailySummary()">📊 Summary</button>
+    <button class="header-btn" onclick="requestNotifPermission()">🔔 Alerts</button>
+    <div class="user-pill">
+      <span id="authUserEmail"></span>
+      <button onclick="handleSignOut()">Sign Out</button>
+    </div>
+  </div>
+</header>
+
+<div id="configBanner" class="config-banner" style="display:none">
+  ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_SUPABASE_URL</code> and <code>YOUR_SUPABASE_ANON_KEY</code> with your Supabase credentials.
+</div>
+
+<div class="new-order-banner" id="newOrderBanner">
+  🔔 New order received!
+</div>
+
+<div class="stats-bar">
+  <div class="stat-card clickable" onclick="setFilter('pending')">
+    <div class="stat-icon pending">⏳</div>
+    <div class="stat-info">
+      <div class="stat-label">Pending</div>
+      <div class="stat-value" id="statPending">0</div>
+    </div>
+  </div>
+  <div class="stat-card clickable" onclick="setFilter('preparing')">
+    <div class="stat-icon preparing">🔵</div>
+    <div class="stat-info">
+      <div class="stat-label">Preparing</div>
+      <div class="stat-value" id="statPreparing">0</div>
+    </div>
+  </div>
+  <div class="stat-card clickable" onclick="setFilter('done')">
+    <div class="stat-icon done">✅</div>
+    <div class="stat-info">
+      <div class="stat-label">Done</div>
+      <div class="stat-value" id="statDone">0</div>
+    </div>
+  </div>
+  <div class="stat-card clickable" onclick="setFilter('rejected')">
+    <div class="stat-icon rejected">❌</div>
+    <div class="stat-info">
+      <div class="stat-label">Rejected</div>
+      <div class="stat-value" id="statRejected">0</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon revenue">₹</div>
+    <div class="stat-info">
+      <div class="stat-label">Today Revenue</div>
+      <div class="stat-value" id="statRevenue" style="color:var(--accent);">₹0</div>
+    </div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search by table, phone, or name..." oninput="renderOrders()"/>
+  </div>
+</div>
+
+<div class="stock-section">
+  <div class="stock-section-title">Menu Availability</div>
+  <div id="stockToggles" class="stock-toggles"></div>
+</div>
+
+<div class="filter-tabs" id="filterTabs">
+  <button class="ftab active" onclick="setFilter('all')" data-filter="all">All Orders</button>
+  <button class="ftab" onclick="setFilter('pending')" data-filter="pending">Pending</button>
+  <button class="ftab" onclick="setFilter('preparing')" data-filter="preparing">Preparing</button>
+  <button class="ftab" onclick="setFilter('done')" data-filter="done">Done</button>
+  <button class="ftab" onclick="setFilter('rejected')" data-filter="rejected">Rejected</button>
+</div>
+
+<div class="orders-container">
+  <div id="ordersGrid" class="orders-grid"></div>
+</div>
+
+<!-- SUMMARY MODAL -->
+<div id="summaryModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📊 Daily Summary</div>
+      <button onclick="closeSummary()" class="modal-close">✕</button>
+    </div>
+    <div id="summaryDate" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:20px;font-family:'JetBrains Mono',monospace;"></div>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">Total Orders</div>
+        <div id="sumTotal" style="color:var(--text-primary);">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Total Revenue</div>
+        <div id="sumRevenue" style="color:var(--accent);">₹0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Completed</div>
+        <div id="sumDone" style="color:var(--accent);">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Rejected</div>
+        <div id="sumRejected" style="color:var(--red);">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Pending</div>
+        <div id="sumPending" style="color:var(--gold);">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Avg Order Value</div>
+        <div id="sumAvg" style="color:var(--blue);">₹0</div>
+      </div>
+    </div>
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
+      <div style="font-size:0.7rem;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em;">Top Items Ordered</div>
+      <div id="sumTopItems"></div>
+    </div>
+    <button onclick="exportToExcel()" style="width:100%;background:var(--accent-subtle);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:12px;color:var(--accent);font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;">
+      📥 Export Today's Excel
+    </button>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div id="exportRangeModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📥 Export Orders</div>
+      <button onclick="closeExportModal()" class="modal-close">✕</button>
+    </div>
+    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:20px;">Select a date range to export all orders.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+      <div>
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">From Date</div>
+        <input type="date" id="exportFromDate" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text-primary);font-family:'JetBrains Mono',monospace;font-size:0.85rem;outline:none;color-scheme:dark;"/>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">To Date</div>
+        <input type="date" id="exportToDate" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text-primary);font-family:'JetBrains Mono',monospace;font-size:0.85rem;outline:none;color-scheme:dark;"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+      <button onclick="setExportRange('today')" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;color:var(--text-secondary);font-size:0.78rem;cursor:pointer;font-family:'Inter',sans-serif;">Today</button>
+      <button onclick="setExportRange('yesterday')" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;color:var(--text-secondary);font-size:0.78rem;cursor:pointer;font-family:'Inter',sans-serif;">Yesterday</button>
+      <button onclick="setExportRange('week')" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;color:var(--text-secondary);font-size:0.78rem;cursor:pointer;font-family:'Inter',sans-serif;">Last 7 Days</button>
+      <button onclick="setExportRange('month')" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;color:var(--text-secondary);font-size:0.78rem;cursor:pointer;font-family:'Inter',sans-serif;">This Month</button>
+      <button onclick="setExportRange('all')" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;color:var(--gold);font-size:0.78rem;cursor:pointer;font-family:'Inter',sans-serif;">All Time</button>
+    </div>
+    <div id="exportStatusMsg" style="min-height:18px;font-size:0.82rem;margin-bottom:14px;text-align:center;"></div>
+    <div style="display:flex;gap:10px;">
+      <button id="exportRunBtn" onclick="runExport()" style="flex:1;background:var(--accent);border:none;border-radius:var(--radius-sm);padding:12px;color:white;font-family:'Inter',sans-serif;font-weight:600;font-size:0.9rem;cursor:pointer;">📥 Export</button>
+      <button onclick="closeExportModal()" style="flex:1;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:0.9rem;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div id="editOrderModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Edit Order</div>
+      <button onclick="closeEditModal()" class="modal-close">✕</button>
+    </div>
+    <div id="editOrderId" style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;"></div>
+    <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Current Items</div>
+    <div id="editItemsList" style="margin-bottom:16px;"></div>
+    <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Add Item</div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <select id="addItemSelect" style="flex:1;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;color:var(--text-primary);font-family:'Inter',sans-serif;font-size:0.85rem;outline:none;">
+        <option value="">— Select item —</option>
+      </select>
+      <button onclick="addItemToEdit()" style="background:var(--accent-subtle);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:9px 16px;color:var(--accent);font-family:'Inter',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;">+ Add</button>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveEditedOrder()" style="flex:1;background:var(--accent);border:none;border-radius:var(--radius-sm);padding:12px;color:white;font-family:'Inter',sans-serif;font-weight:600;font-size:0.9rem;cursor:pointer;">Save Changes</button>
+      <button onclick="closeEditModal()" style="flex:1;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:0.9rem;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div id="printSlip">
+  <h2>🌿 Green Cucina</h2>
+  <div class="ps-sub">Farm-to-table Café, Kota, Rajasthan</div>
+  <div class="ps-meta"><strong>GSTIN:</strong> 08AABCG1234D1ZQ</div>
+  <hr class="ps-divider"/>
+  <div class="ps-meta"><strong>Invoice No:</strong> <span id="psInvoiceNo"></span></div>
+  <div class="ps-meta"><strong>Order ID:</strong> <span id="psOrderId"></span></div>
+  <div class="ps-meta"><strong>Table No:</strong> <span id="psTable"></span></div>
+  <div class="ps-meta"><strong>Phone:</strong> <span id="psPhone"></span></div>
+  <div class="ps-meta"><strong>Date:</strong> <span id="psDate"></span></div>
+  <div class="ps-meta"><strong>Time:</strong> <span id="psTime"></span></div>
+  <div class="ps-meta"><strong>Status:</strong> <span id="psStatus"></span></div>
+  <hr class="ps-divider"/>
+  <div id="psItems"></div>
+  <hr class="ps-divider"/>
+  <div class="ps-row"><span>Subtotal</span><span id="psSubtotal"></span></div>
+  <div class="ps-row"><span>CGST @ 2.5%</span><span id="psCGST"></span></div>
+  <div class="ps-row"><span>SGST @ 2.5%</span><span id="psSGST"></span></div>
+  <hr class="ps-divider"/>
+  <div class="ps-row ps-total"><span>Grand Total</span><span id="psTotal"></span></div>
+  <div class="ps-row"><span id="psNote"></span></div>
+  <hr class="ps-divider"/>
+  <div class="ps-foot">Payment at counter · Thank you 🌿</div>
+</div>
+
+<script>
+let orders = [];
+let activeFilter = 'all';
+let supabaseClient = null;
+let notifGranted = false;
+let appInitialized = false;
+
+window.appInit = function() {
+  if (appInitialized) return;
+  appInitialized = true;
+  updateClock();
+  setInterval(updateClock, 1000);
+  setInterval(async () => {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from('settings').select('key').limit(1);
+      if (error) {
+        document.getElementById('liveDot').classList.add('offline');
+        document.getElementById('liveStatus').textContent = 'Reconnecting…';
+        supabaseClient = null;
+        initSupabase();
+      }
+    }
+  }, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (!supabaseClient) initSupabase();
+    }
+  });
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.getElementById('configBanner').style.display = 'block';
+    document.getElementById('liveDot').classList.add('offline');
+    document.getElementById('liveStatus').textContent = 'Local only';
+  } else {
+    initSupabase();
+  }
+  try {
+    const bc = new BroadcastChannel('green_cucina_orders');
+    bc.onmessage = (e) => { receiveOrder(e.data); };
+  } catch(e) {}
+};
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-IN');
+}
+
+async function initSupabase() {
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Load menu first (needed for stock toggles + edit modal)
+    await loadMenuFromSupabase();
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    await loadStoreStatus();
+    await loadOutOfStock();
+    const { data, error } = await supabaseClient
+      .from('orders')
+      .select('*')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false });
+    if (!error && data) {
+      let hasNew = false;
+      data.forEach(o => {
+        if (!orders.find(x => x.order_id === o.order_id)) {
+          orders.push(o);
+          hasNew = true;
+        }
+      });
+      if (hasNew) {
+        orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        renderOrders();
+        updateStats();
+      }
+    }
+    await supabaseClient.removeAllChannels();
+    supabaseClient
+      .channel('orders-' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        receiveOrder(payload.new);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          document.getElementById('liveDot').classList.remove('offline');
+          document.getElementById('liveStatus').textContent = 'Live';
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          document.getElementById('liveDot').classList.add('offline');
+          document.getElementById('liveStatus').textContent = 'Reconnecting…';
+          setTimeout(() => initSupabase(), 5000);
+        }
+      });
+
+       // Subscribe to menu changes AFTER removeAllChannels (so it isn't killed)
+    subscribeMenuChanges();
+  } catch(e) { console.error('Supabase error:', e); }
+}
+
+function receiveOrder(orderData) {
+  if (orders.find(o => o.order_id === orderData.order_id)) return;
+  if (!storeOpen) return;
+  orders.unshift(orderData);
+  renderOrders();
+  updateStats();
+  showNewOrderToast(orderData);
+  showBanner();
+  playChime();
+  if (notifGranted) {
+    new Notification('🌿 New Order — Green Cucina', {
+      body: `Table ${orderData.table_no} · ₹${orderData.total} · ${orderData.items.length} item(s)`,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🌿</text></svg>'
+    });
+  }
+}
+
+let chimeVolume = 0.5;
+// ── Dynamic menu (loaded from Supabase) ──
+let MENU_ITEMS = [];
+let FULL_MENU  = [];
+
+const DEFAULT_MENU = [
+  { id:1,  name:'Avocado Sourdough Toast', emoji:'🥑', price:180 },
+  { id:2,  name:'Fluffy Ricotta Pancakes', emoji:'🥞', price:220 },
+  { id:3,  name:'Green Shakshuka',          emoji:'🍳', price:200 },
+  { id:4,  name:'Pesto Pasta al Verde',     emoji:'🍝', price:280 },
+  { id:5,  name:'The Big Green Bowl',       emoji:'🥗', price:250 },
+  { id:6,  name:'Margherita Rustica',       emoji:'🍕', price:300 },
+  { id:7,  name:'Single Origin Espresso',  emoji:'☕', price:90  },
+  { id:8,  name:'Matcha Latte',            emoji:'🍵', price:160 },
+  { id:9,  name:'Garden Green Smoothie',   emoji:'🥤', price:140 },
+  { id:10, name:'Tiramisu Classico',       emoji:'🍮', price:180 },
+  { id:11, name:'Pistachio Panna Cotta',   emoji:'🍰', price:160 },
+  { id:12, name:'Dark Choco Fondant',      emoji:'🍫', price:200 }
+];
+
+function applyMenuData(data) {
+  if (!data || !data.items) return;
+  MENU_ITEMS = data.items.map(i => ({ id:parseInt(i.id), name:i.name, emoji:i.emoji||'🍽️', price:i.price }));
+  FULL_MENU  = [...MENU_ITEMS];
+}
+
+async function loadMenuFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient.from('settings').select('value').eq('key','menu_data').single();
+    if (!error && data && data.value) {
+      applyMenuData(JSON.parse(data.value));
+    } else {
+      applyMenuData({ items: DEFAULT_MENU });
+    }
+  } catch(e) { applyMenuData({ items: DEFAULT_MENU }); }
+}
+
+function subscribeMenuChanges() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('kitchen-menu-changes')
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'settings', filter:'key=eq.menu_data' }, (payload) => {
+      try {
+        applyMenuData(JSON.parse(payload.new.value));
+        renderStockToggles();
+        // Refresh edit modal dropdown if currently open
+        const modal = document.getElementById('editOrderModal');
+        if (modal && modal.style.display === 'flex') refreshEditDropdown();
+      } catch(e) {}
+    })
+    .subscribe();
+}
+let outOfStock = [];
+let storeOpen = true;
+
+async function loadOutOfStock() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.from('settings').select('out_of_stock').eq('key','store_status').single();
+  if (data) {
+    try { outOfStock = JSON.parse(data.out_of_stock || '[]'); } catch(e) { outOfStock = []; }
+  }
+  renderStockToggles();
+}
+
+function renderStockToggles() {
+  const items = MENU_ITEMS.length > 0 ? MENU_ITEMS : DEFAULT_MENU;
+  document.getElementById('stockToggles').innerHTML = items.map(item => {
+    const oos = outOfStock.includes(item.id);
+    return `
+      <button onclick="toggleStock(${item.id})"
+        style="border-radius:50px;padding:6px 14px;font-size:0.78rem;font-family:'Inter',sans-serif;font-weight:500;cursor:pointer;transition:all 0.2s;
+        background:${oos ? 'var(--red-subtle)' : 'var(--accent-subtle)'};
+        color:${oos ? 'var(--red)' : 'var(--accent)'};
+        border:1px solid ${oos ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'};">
+        ${oos ? '❌' : '✅'} ${item.name}
+      </button>`;
+  }).join('');
+}
+
+async function toggleStock(itemId) {
+  if (outOfStock.includes(itemId)) {
+    outOfStock = outOfStock.filter(id => id !== itemId);
+  } else {
+    outOfStock.push(itemId);
+  }
+  renderStockToggles();
+  if (supabaseClient) {
+    await supabaseClient.from('settings').update({ out_of_stock: JSON.stringify(outOfStock) }).eq('key','store_status');
+  }
+}
+
+async function loadStoreStatus() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.from('settings').select('value').eq('key', 'store_status').single();
+  if (data) {
+    storeOpen = data.value === 'open';
+    updateToggleBtn();
+  }
+}
+
+function updateToggleBtn() {
+  const btn = document.getElementById('storeToggleBtn');
+  if (storeOpen) {
+    btn.textContent = '🟢 Store Open';
+    btn.style.background = 'var(--accent-subtle)';
+    btn.style.color = 'var(--accent)';
+    btn.style.border = '1px solid rgba(16,185,129,0.3)';
+  } else {
+    btn.textContent = '🔴 Store Closed';
+    btn.style.background = 'var(--red-subtle)';
+    btn.style.color = 'var(--red)';
+    btn.style.border = '1px solid rgba(239,68,68,0.3)';
+  }
+}
+
+async function toggleStoreStatus() {
+  storeOpen = !storeOpen;
+  updateToggleBtn();
+  if (supabaseClient) {
+    await supabaseClient.from('settings').update({ value: storeOpen ? 'open' : 'closed' }).eq('key', 'store_status');
+  }
+}
+
+async function deleteOrder(orderId) {
+  const confirmed = confirm('Delete this order?');
+  if (!confirmed) return;
+  orders = orders.filter(o => o.order_id !== orderId);
+  if (supabaseClient) {
+    await supabaseClient.from('orders').delete().eq('order_id', orderId);
+  }
+  renderOrders();
+  updateStats();
+}
+
+async function setStatus(orderId, newStatus) {
+  const order = orders.find(o => o.order_id === orderId);
+  if (!order) return;
+  order.status = newStatus;
+  if (supabaseClient) {
+    await supabaseClient.from('orders').update({ status: newStatus }).eq('order_id', orderId);
+  }
+  renderOrders();
+  updateStats();
+  showToast(newStatus === 'done' ? '✅' : newStatus === 'rejected' ? '❌' : '🔵',
+    `Order ${orderId}`, `Marked as ${newStatus}`);
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.ftab').forEach(el => {
+    el.classList.toggle('active', el.dataset.filter === f);
+  });
+  document.querySelectorAll('.stat-card').forEach(el => el.classList.remove('active-filter'));
+  renderOrders();
+}
+
+function renderOrders() {
+  const grid = document.getElementById('ordersGrid');
+  const searchTerm = document.getElementById('searchInput')
+    ? document.getElementById('searchInput').value.trim().toLowerCase()
+    : '';
+  let filtered = activeFilter === 'all' ? orders : orders.filter(o => o.status === activeFilter);
+  if (searchTerm) {
+    filtered = filtered.filter(o =>
+      (o.table_no && o.table_no.toLowerCase().includes(searchTerm)) ||
+      (o.phone_no && o.phone_no.includes(searchTerm)) ||
+      (o.customer_name && o.customer_name.toLowerCase().includes(searchTerm)) ||
+      (o.customer_email && o.customer_email.toLowerCase().includes(searchTerm))
+    );
+  }
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🌿</div>
+        <div class="empty-title">No ${activeFilter === 'all' ? '' : activeFilter + ' '}orders yet</div>
+        <div class="empty-subtitle">Orders will appear here in real-time</div>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(order => renderOrderCard(order)).join('');
+}
+
+function renderOrderCard(order) {
+  const time = new Date(order.created_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const date = new Date(order.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+  const statusBadge = {
+    pending:   '<span class="status-badge badge-pending">Pending</span>',
+    preparing: '<span class="status-badge badge-preparing">Preparing</span>',
+    done:      '<span class="status-badge badge-done">Done</span>',
+    rejected:  '<span class="status-badge badge-rejected">Rejected</span>',
+  }[order.status] || '';
+
+  const actionBtns = () => {
+    if (order.status === 'pending') return `
+      <button class="action-btn btn-accept" onclick="setStatus('${order.order_id}', 'preparing')">Prepare</button>
+      <button class="action-btn btn-reject" onclick="setStatus('${order.order_id}', 'rejected')">Reject</button>`;
+    if (order.status === 'preparing') return `
+      <button class="action-btn btn-done" onclick="setStatus('${order.order_id}', 'done')">Done</button>
+      <button class="action-btn btn-preparing" onclick="openEditModal('${order.order_id}')">Edit</button>`;
+    return '';
+  };
+
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  return `
+    <div class="order-card status-${order.status}" id="oc-${order.order_id}">
+      <div class="card-header">
+        <div>
+          <div class="order-id">${order.order_id}</div>
+          <div class="order-table">Table ${order.table_no}</div>
+          <div class="order-meta-row">
+            <span class="order-meta-item">📅 ${date} · ${time}</span>
+            <span class="order-meta-item">📞 ${order.phone_no || 'N/A'}</span>
+            ${order.customer_name ? `<span class="order-meta-item">👤 ${order.customer_name}</span>` : ''}
+          </div>
+        </div>
+        ${statusBadge}
+      </div>
+      <div class="card-items">
+        ${items.map(item => `
+          <div class="order-item">
+            <span class="item-emoji">${item.emoji || '🍽'}</span>
+            <span class="item-name">${item.name}</span>
+            <span class="item-qty">×${item.qty}</span>
+          </div>
+        `).join('')}
+      </div>
+      ${order.note ? `<div class="order-note"><span>Note:</span> ${order.note}</div>` : ''}
+      <div class="card-footer">
+        <div class="order-total">₹${order.total}</div>
+        <div class="action-btns">
+          ${actionBtns()}
+          <button class="action-btn btn-reject" onclick="deleteOrder('${order.order_id}')">🗑</button>
+          <button class="action-btn btn-preparing" onclick="printOrder('${order.order_id}')">Print</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function updateStats() {
+  document.getElementById('statPending').textContent = orders.filter(o => o.status === 'pending').length;
+  document.getElementById('statPreparing').textContent = orders.filter(o => o.status === 'preparing').length;
+  document.getElementById('statDone').textContent = orders.filter(o => o.status === 'done').length;
+  document.getElementById('statRejected').textContent = orders.filter(o => o.status === 'rejected').length;
+  const rev = orders.filter(o => o.status !== 'rejected').reduce((s,o) => s + (o.total || 0), 0);
+  document.getElementById('statRevenue').textContent = `₹${rev}`;
+}
+
+function showNewOrderToast(order) {
+  showToast('🔔', `New Order — Table ${order.table_no}`, `${order.items.length} item(s) · ₹${order.total}`, true);
+}
+
+function showToast(icon, title, msg, isNew = false) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (isNew ? ' new-order' : '');
+  toast.innerHTML = `<div class="toast-icon">${icon}</div><div><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+function showBanner() {
+  const b = document.getElementById('newOrderBanner');
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 5000);
+}
+
+let audioCtx = null;
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    audioUnlocked = true;
+    document.getElementById('audioWarning').style.display = 'none';
+  } catch(e) {}
+}
+document.addEventListener('click', unlockAudio);
+document.addEventListener('touchstart', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
+
+function playChime() {
+  try {
+    if (!audioUnlocked) unlockAudio();
+    if (!audioCtx) return;
+
+    const now = audioCtx.currentTime;
+    const vol = chimeVolume;
+
+    function beep(freq, start, duration, type = 'sine') {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol * 0.3, now + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + duration);
+    }
+
+    beep(880, 0, 0.15);
+    beep(1100, 0.12, 0.15);
+    beep(1320, 0.24, 0.25);
+  } catch(e) {}
+}
+
+function printOrder(orderId) {
+  const order = orders.find(o => o.order_id === orderId);
+  if (!order) return;
+  const dt = new Date(order.created_at);
+  const yy = dt.getFullYear().toString().slice(-2);
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const invoiceNo = `INV-${yy}${mm}-${order.order_id.replace('GC-', '')}`;
+  const subtotal = order.total || 0;
+  const cgst = Math.round(subtotal * 0.025 * 100) / 100;
+  const sgst = Math.round(subtotal * 0.025 * 100) / 100;
+  const grandTotal = subtotal + cgst + sgst;
+  document.getElementById('psInvoiceNo').textContent = invoiceNo;
+  document.getElementById('psOrderId').textContent = order.order_id;
+  document.getElementById('psTable').textContent = order.table_no;
+  document.getElementById('psPhone').textContent = order.phone_no || 'N/A';
+  document.getElementById('psDate').textContent = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  document.getElementById('psTime').textContent = dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('psStatus').textContent = order.status.toUpperCase();
+  document.getElementById('psSubtotal').textContent = '₹' + subtotal.toFixed(2);
+  document.getElementById('psCGST').textContent = '₹' + cgst.toFixed(2);
+  document.getElementById('psSGST').textContent = '₹' + sgst.toFixed(2);
+  document.getElementById('psTotal').textContent = '₹' + grandTotal.toFixed(2);
+  document.getElementById('psNote').textContent = order.note ? '📝 ' + order.note : '';
+  const items = Array.isArray(order.items) ? order.items : [];
+  document.getElementById('psItems').innerHTML = items.map(i =>
+    `<div class="ps-row"><span>${i.emoji || ''} ${i.name} ×${i.qty}</span><span>₹${i.price * i.qty}</span></div>`
+  ).join('');
+  document.getElementById('printSlip').style.display = 'block';
+  window.print();
+  document.getElementById('printSlip').style.display = 'none';
+}
+
+function showDailySummary() {
+  const total = orders.length;
+  const done = orders.filter(o => o.status === 'done').length;
+  const rejected = orders.filter(o => o.status === 'rejected').length;
+  const pending = orders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
+  const revenue = orders.filter(o => o.status !== 'rejected').reduce((s, o) => s + (o.total || 0), 0);
+  const avg = done > 0 ? Math.round(revenue / (total - rejected)) : 0;
+  document.getElementById('sumTotal').textContent = total;
+  document.getElementById('sumRevenue').textContent = '₹' + revenue;
+  document.getElementById('sumDone').textContent = done;
+  document.getElementById('sumRejected').textContent = rejected;
+  document.getElementById('sumPending').textContent = pending;
+  document.getElementById('sumAvg').textContent = '₹' + avg;
+  document.getElementById('summaryDate').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const itemCount = {};
+  orders.filter(o => o.status !== 'rejected').forEach(o => {
+    (o.items || []).forEach(i => { itemCount[i.name] = (itemCount[i.name] || 0) + i.qty; });
+  });
+  const sorted = Object.entries(itemCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  document.getElementById('sumTopItems').innerHTML = sorted.length === 0
+    ? '<div style="font-size:0.82rem;color:var(--text-muted);">No items yet</div>'
+    : sorted.map((item, i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;">
+          <span style="color:var(--text-primary);">${i + 1}. ${item[0]}</span>
+          <span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">×${item[1]}</span>
+        </div>`).join('');
+  document.getElementById('summaryModal').classList.add('show');
+}
+
+function closeSummary() {
+  document.getElementById('summaryModal').classList.remove('show');
+}
+
+function exportToExcel() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  document.getElementById('exportFromDate').value = todayStr;
+  document.getElementById('exportToDate').value   = todayStr;
+  document.getElementById('exportStatusMsg').textContent = '';
+  document.getElementById('exportRangeModal').classList.add('show');
+}
+
+function closeExportModal() {
+  document.getElementById('exportRangeModal').classList.remove('show');
+}
+
+function setExportRange(range) {
+  const today = new Date();
+  const fmt = d => d.toISOString().slice(0, 10);
+  let from, to;
+  if (range === 'today') { from = to = fmt(today); }
+  else if (range === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); from = to = fmt(y); }
+  else if (range === 'week') { const w = new Date(today); w.setDate(w.getDate() - 6); from = fmt(w); to = fmt(today); }
+  else if (range === 'month') { const m = new Date(today.getFullYear(), today.getMonth(), 1); from = fmt(m); to = fmt(today); }
+  else if (range === 'all') { from = '2024-01-01'; to = fmt(today); }
+  document.getElementById('exportFromDate').value = from;
+  document.getElementById('exportToDate').value   = to;
+  document.getElementById('exportStatusMsg').textContent = '';
+}
+
+async function runExport() {
+  const fromVal  = document.getElementById('exportFromDate').value;
+  const toVal    = document.getElementById('exportToDate').value;
+  const statusEl = document.getElementById('exportStatusMsg');
+  if (!fromVal || !toVal) { statusEl.style.color = 'var(--red)'; statusEl.textContent = 'Please select both dates.'; return; }
+  if (fromVal > toVal) { statusEl.style.color = 'var(--red)'; statusEl.textContent = '"From" date cannot be after "To" date.'; return; }
+  const btn = document.getElementById('exportRunBtn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching…';
+  statusEl.style.color = 'var(--text-secondary)';
+  statusEl.textContent = 'Fetching orders from database…';
+  const fromISO = new Date(fromVal + 'T00:00:00').toISOString();
+  const toISO   = new Date(toVal   + 'T23:59:59').toISOString();
+  let exportData = [];
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.from('orders').select('*').gte('created_at', fromISO).lte('created_at', toISO).order('created_at', { ascending: true });
+    if (error) { statusEl.style.color = 'var(--red)'; statusEl.textContent = 'Error: ' + error.message; btn.disabled = false; btn.textContent = '📥 Export'; return; }
+    exportData = data || [];
+  } else {
+    exportData = orders.filter(o => o.created_at >= fromISO && o.created_at <= toISO);
+  }
+  if (exportData.length === 0) { statusEl.style.color = 'var(--gold)'; statusEl.textContent = 'No orders found in this date range.'; btn.disabled = false; btn.textContent = '📥 Export'; return; }
+  const rows = exportData.map((o, index) => {
+    const itemsList = Array.isArray(o.items) ? o.items.map(i => `${i.name} x${i.qty}`).join(', ') : '';
+    const dt = new Date(o.created_at);
+    const subtotal = o.total || 0;
+    const cgst = Math.round(subtotal * 0.025 * 100) / 100;
+    const sgst = cgst;
+    return {
+      'S.No': index + 1, 'Order ID': o.order_id, 'Table No': o.table_no,
+      'Customer': o.customer_name || 'N/A', 'Phone No': o.phone_no || 'N/A', 'Items': itemsList,
+      'Subtotal (₹)': subtotal, 'CGST (₹)': cgst, 'SGST (₹)': sgst,
+      'Grand Total (₹)': subtotal + cgst + sgst, 'Note': o.note || '', 'Status': o.status,
+      'Date': dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
+      'Time': dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }),
+    };
+  });
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, ...rows.map(r => String(r[k] || '').length)) + 2 }));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
+  const label = fromVal === toVal ? fromVal : `${fromVal}_to_${toVal}`;
+  XLSX.writeFile(workbook, `GreenCucina-Orders-${label}.xlsx`);
+  statusEl.style.color = 'var(--accent)';
+  statusEl.textContent = `Exported ${exportData.length} order(s)!`;
+  btn.disabled = false;
+  btn.textContent = '📥 Export';
+  setTimeout(closeExportModal, 1800);
+}
+
+document.getElementById('volumeSlider').addEventListener('input', function() {
+  chimeVolume = parseFloat(this.value);
+  document.getElementById('volumeLabel').textContent = Math.round(chimeVolume * 100) + '%';
+});
+
+async function requestNotifPermission() {
+  if ('Notification' in window) {
+    const perm = await Notification.requestPermission();
+    notifGranted = perm === 'granted';
+    showToast('🔔', notifGranted ? 'Notifications enabled' : 'Notifications blocked', '');
+  }
+}
+
+let _editOrderId = null;
+let _editItems = [];
+// ── Dynamic menu (loaded from Supabase) ──
+
+
+function openEditModal(orderId) {
+  const order = orders.find(o => o.order_id === orderId);
+  if (!order) return;
+  _editOrderId = orderId;
+  _editItems = order.items.map(i => ({ ...i }));
+  document.getElementById('editOrderId').textContent = orderId + ' · Table ' + order.table_no;
+refreshEditDropdown();
+  renderEditItems();
+  document.getElementById('editOrderModal').classList.add('show');
+}
+
+function closeEditModal() {
+  document.getElementById('editOrderModal').classList.remove('show');
+  _editOrderId = null;
+  _editItems = [];
+}
+
+function refreshEditDropdown() {
+  const menuSource = FULL_MENU.length > 0 ? FULL_MENU : DEFAULT_MENU;
+  const sel = document.getElementById('addItemSelect');
+  sel.innerHTML = '<option value="">— Select item —</option>' +
+    menuSource.map(m => `<option value="${m.id}">${m.emoji||'🍽️'} ${m.name} — ₹${m.price}</option>`).join('');
+}
+
+function renderEditItems() {
+  const el = document.getElementById('editItemsList');
+  if (_editItems.length === 0) {
+    el.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);font-style:italic;padding:8px 0;">No items — add at least one below.</div>';
+    return;
+  }
+  el.innerHTML = _editItems.map((item, idx) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:1rem;">${item.emoji || '🍽'}</span>
+      <span style="flex:1;font-size:0.88rem;color:var(--text-primary);font-weight:500;">${item.name}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button onclick="changeEditQty(${idx}, -1)" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);width:26px;height:26px;color:var(--text-secondary);cursor:pointer;font-size:0.9rem;">−</button>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--text-primary);min-width:18px;text-align:center;">×${item.qty}</span>
+        <button onclick="changeEditQty(${idx}, 1)" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);width:26px;height:26px;color:var(--text-secondary);cursor:pointer;font-size:0.9rem;">+</button>
+      </div>
+      <span style="font-size:0.82rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">₹${item.price * item.qty}</span>
+      <button onclick="removeEditItem(${idx})" style="background:var(--red-subtle);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);width:26px;height:26px;color:var(--red);cursor:pointer;font-size:0.8rem;">✕</button>
+    </div>`).join('');
+}
+
+function changeEditQty(idx, delta) {
+  _editItems[idx].qty = Math.max(1, _editItems[idx].qty + delta);
+  renderEditItems();
+}
+
+function removeEditItem(idx) {
+  _editItems.splice(idx, 1);
+  renderEditItems();
+}
+
+function addItemToEdit() {
+  const sel = document.getElementById('addItemSelect');
+  const menuId = parseInt(sel.value);
+  if (!menuId) return;
+  const menuSource = FULL_MENU.length > 0 ? FULL_MENU : DEFAULT_MENU;
+  const menuItem = menuSource.find(m => m.id === menuId);
+  if (!menuItem) return;
+  const existing = _editItems.find(i => i.name === menuItem.name);
+  if (existing) { existing.qty++; }
+  else { _editItems.push({ name: menuItem.name, emoji: menuItem.emoji, price: menuItem.price, qty: 1 }); }
+  sel.value = '';
+  renderEditItems();
+}
+
+async function saveEditedOrder() {
+  if (!_editOrderId || _editItems.length === 0) { alert('Order must have at least one item.'); return; }
+  const newTotal = _editItems.reduce((s, i) => s + i.price * i.qty, 0);
+  const order = orders.find(o => o.order_id === _editOrderId);
+  if (!order) return;
+  order.items = _editItems;
+  order.total = newTotal;
+  if (supabaseClient) {
+    await supabaseClient.from('orders').update({ items: _editItems, total: newTotal }).eq('order_id', _editOrderId);
+  }
+  closeEditModal();
+  renderOrders();
+  updateStats();
+  showToast('✏️', `Order ${_editOrderId}`, 'Order items updated');
+}
+</script>
+</body>
+</html>
