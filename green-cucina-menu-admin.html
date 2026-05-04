@@ -85,9 +85,9 @@ function showLoginBox() {
   window.checkVerified = async function() {
     const user = auth.currentUser; if (!user) return;
     await user.reload();
-const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
-    if (user.emailVerified && data?.role === 'admin') location.reload();
-    else document.getElementById('verifyMsg').textContent = '⛔ Access denied. You do not have admin access.';
+if (user.emailVerified && data?.role === 'admin') location.reload();
+    else if (user.emailVerified) document.getElementById('verifyMsg').textContent = '⛔ Access denied. You do not have admin access.';
+    else document.getElementById('verifyMsg').textContent = '⚠️ Not verified yet. Check your inbox.';
     else document.getElementById('verifyMsg').textContent = '⚠️ Not verified yet. Check your inbox.';
   };
   window.handleForgotPassword = async function() {
