@@ -35,6 +35,8 @@ onAuthStateChanged(auth, async (user) => {
       document.getElementById('appShell').style.display = 'block';
       document.getElementById('authUserEmail').textContent = user.email;
       if (typeof window.adminInit === 'function') window.adminInit();
+    } else if (user && user.emailVerified) {
+      showRestrictedScreen();
     } else if (user && !user.emailVerified) {
       showVerifyBox(user);
     } else {
@@ -46,6 +48,13 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('appShell').style.display = 'none';
     document.getElementById('loginBox').style.display = 'block';
     document.getElementById('verifyBox').style.display = 'none';
+  }
+  function showRestrictedScreen() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'none';
+    document.getElementById('verifyBox').style.display   = 'none';
+    document.getElementById('restrictBox').style.display = 'block';
   }
   function showVerifyBox(user) {
     document.getElementById('authOverlay').style.display = 'flex';
@@ -367,6 +376,14 @@ header {
     <button class="auth-btn-secondary" onclick="resendVerification()">🔁 Resend Verification Email</button>
     <div id="verifyMsg" style="margin-top:12px;font-size:0.82rem;color:var(--text-mid);min-height:18px;"></div>
     <button class="auth-link" style="margin-top:12px;display:block;" onclick="handleSignOut()">← Back to Login</button>
+  </div>
+  <div id="restrictBox" class="auth-box" style="display:none;text-align:center;">
+    <div style="font-size:3rem;margin-bottom:16px;">🚫</div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.3rem;color:var(--text);margin-bottom:8px;">Restricted Access</div>
+    <div style="font-size:0.82rem;color:var(--text-mid);margin-bottom:20px;line-height:1.6;">
+      This page is for verified staff only.<br/>You do not have permission to access this area.
+    </div>
+    <button class="auth-btn-primary" onclick="handleSignOut()">← Back to Login</button>
   </div>
 </div>
 
