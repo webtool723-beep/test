@@ -26,7 +26,9 @@
   window._fbSendVerification = (u) => sendEmailVerification(u);
 
   onAuthStateChanged(auth, user => {
-    if (user && user.emailVerified) {
+    const ALLOWED_EMAILS = ["ratankumarpurvey15@gmail.com", "sushanthunkaripatil@gmail.com"];
+
+if (user && user.emailVerified && ALLOWED_EMAILS.includes(user.email)) {
       document.getElementById('authOverlay').style.display = 'none';
       document.getElementById('appShell').style.display = 'block';
       document.getElementById('authUserEmail').textContent = user.email;
