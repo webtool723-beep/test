@@ -112,7 +112,8 @@ onAuthStateChanged(auth, async (user) => {
     const user = auth.currentUser;
     if (!user) return;
     await user.reload();
-    if (user.emailVerified) {
+    const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
+if (user.emailVerified && data?.role === 'admin') {
       document.getElementById('authOverlay').style.display = 'none';
       document.getElementById('appShell').style.display    = 'block';
       document.getElementById('authUserEmail').textContent = user.email;
