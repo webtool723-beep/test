@@ -29,7 +29,7 @@
   window._googleProvider = googleProvider;
   window._firebaseFns = { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInWithPopup, updateProfile };
 
-  onAuthStateChanged(auth, (user) => {
+ onAuthStateChanged(auth, async (user) => {
     window._currentUser = user;
     const btn = document.getElementById('authHeaderBtn');
     const userInfo = document.getElementById('headerUserInfo');
