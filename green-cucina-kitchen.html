@@ -37,9 +37,9 @@
   // ── Auth state gate ──
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      const ALLOWED_EMAILS = ["ratankumarpurvey15@gmail.com", "sushanthunkaripatil@gmail.com"];
-
-if (user.emailVerified && ALLOWED_EMAILS.includes(user.email)) {
+      const { data } = await supabase.from('user_roles').select('role').eq('email', user.email).single();
+if (!data) await supabase.from('user_roles').insert({ email: user.email, role: 'customer' });
+if (user.emailVerified && data?.role === 'admin') {
         document.getElementById('authOverlay').style.display = 'none';
         document.getElementById('appShell').style.display    = 'block';
         document.getElementById('authUserEmail').textContent = user.email;
