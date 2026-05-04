@@ -37,7 +37,9 @@
   // ── Auth state gate ──
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      if (user.emailVerified) {
+      const ALLOWED_EMAILS = ["ratankumarpurvey15@gmail.com", "sushanthunkaripatil@gmail.com"];
+
+if (user.emailVerified && ALLOWED_EMAILS.includes(user.email)) {
         document.getElementById('authOverlay').style.display = 'none';
         document.getElementById('appShell').style.display    = 'block';
         document.getElementById('authUserEmail').textContent = user.email;
