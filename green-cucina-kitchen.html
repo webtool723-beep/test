@@ -47,8 +47,9 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('authUserEmail').textContent = user.email;
         // Now kick off the app
         if (typeof window.appInit === 'function') window.appInit();
+      } else if (user.emailVerified) {
+        showRestrictedScreen();
       } else {
-        // Signed in but email not verified
         showVerifyScreen(user);
       }
     } else {
@@ -62,7 +63,13 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('loginBox').style.display    = 'block';
     document.getElementById('verifyBox').style.display   = 'none';
   }
-
+function showRestrictedScreen() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'none';
+    document.getElementById('verifyBox').style.display   = 'none';
+    document.getElementById('restrictBox').style.display = 'block';
+  }
   function showVerifyScreen(user) {
     document.getElementById('authOverlay').style.display = 'flex';
     document.getElementById('appShell').style.display    = 'none';
@@ -661,6 +668,22 @@ if (user.emailVerified && data?.role === 'admin') {
     <div style="margin-top:20px;padding:14px;background:#1a1500;border:1px solid #ffc10730;border-radius:10px;font-size:0.78rem;color:#ffc107;line-height:1.6;">
       🔒 Only verified email accounts can access the dashboard.
     </div>
+
+    <div id="restrictBox" style="display:none;
+    background:#1a0a0a; border:1px solid #5a1a1a; border-radius:20px;
+    padding:40px 36px; width:100%; max-width:400px; margin:24px; text-align:center;">
+    <div style="font-size:3rem;margin-bottom:16px;">🚫</div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.3rem;color:#ffcccc;margin-bottom:8px;">Restricted Access</div>
+    <div style="font-size:0.85rem;color:#ff8a80;margin-bottom:20px;line-height:1.6;">
+      This page is for verified staff only.<br/>You do not have permission to access this area.
+    </div>
+    <button onclick="handleSignOut()" style="
+      width:100%;background:#3a0a0a;border:1px solid #c62828;border-radius:12px;
+      padding:12px;color:#ff8a80;font-family:'DM Sans',sans-serif;font-weight:600;
+      font-size:0.9rem;cursor:pointer;">
+      ← Back to Login
+    </button>
+  </div>
   </div>
 
   <!-- VERIFY BOX -->
