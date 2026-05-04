@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Green Cucina — Menu Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script>
+(function(){
+  var t=localStorage.getItem('gc-theme');
+  if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
+  if(t==='dark')document.documentElement.setAttribute('data-theme','dark');
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyCaetYJOBQoL0c6Y1DdJN1m-PMxpCcuRc0",
+    authDomain: "green-cucina.firebaseapp.com",
+    projectId: "green-cucina",
+    storageBucket: "green-cucina.firebasestorage.app",
+    messagingSenderId: "810215846761",
+    appId: "1:810215846761:web:201d72b7f2aea201dbc3f8"
+  };
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  window._firebaseAuth = auth;
+  window._fbSignIn = (e,p) => signInWithEmailAndPassword(auth,e,p);
+  window._fbSignOut = () => signOut(auth);
+  window._fbPasswordReset = (e) => sendPasswordResetEmail(auth,e);
+  window._fbSendVerification = (u) => sendEmailVerification(u);
+
+  const _roleClient = supabase.createClient('https://bifohqaceaufxlyfwpgp.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM');
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { showLoginBox(); return; }
+    const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
+    if (!data) await _roleClient.from('user_roles').insert({ email: user.email, role: 'customer' });
+    if (user && user.emailVerified && data?.role === 'admin') {
+      document.getElementById('authOverlay').style.display = 'none';
+      document.getElementById('appShell').style.display = 'block';
+      document.getElementById('authUserEmail').textContent = user.email;
+      if (typeof window.adminInit === 'function') window.adminInit();
+    } else if (user && user.emailVerified) {
+      showRestrictedScreen();
+    } else if (user && !user.emailVerified) {
+      showVerifyBox(user);
+    } else {
+      showLoginBox();
+    }
+  });
+  function showLoginBox() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display = 'none';
+    document.getElementById('loginBox').style.display = 'block';
+    document.getElementById('verifyBox').style.display = 'none';
+    document.getElementById('restrictBox').style.display = 'none';
+  }
+  function showRestrictedScreen() {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    document.getElementById('loginBox').style.display    = 'none';
+    document.getElementById('verifyBox').style.display   = 'none';
+    document.getElementById('restrictBox').style.display = 'block';
+  }
+  function showVerifyBox(user) {
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('appShell').style.display = 'none';
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('verifyBox').style.display = 'block';
+    document.getElementById('verifyEmail').textContent = user.email;
+  }
+  window.handleLogin = async function() {
+    const e = document.getElementById('loginEmail').value.trim();
+    const p = document.getElementById('loginPassword').value;
+    const err = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+    err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const cred = await window._fbSignIn(e, p);
+      if (!cred.user.emailVerified) { await window._fbSendVerification(cred.user); showVerifyBox(cred.user); }
+    } catch(ex) { err.textContent = friendlyErr(ex.code); }
+    finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+  };
+  window.resendVerification = async function() {
+    const user = auth.currentUser; if (!user) return;
+    try { await window._fbSendVerification(user); document.getElementById('verifyMsg').textContent = '✅ Sent! Check inbox.'; }
+    catch(ex) { document.getElementById('verifyMsg').textContent = '⚠️ ' + friendlyErr(ex.code); }
+  };
+  window.checkVerified = async function() {
+    const user = auth.currentUser; if (!user) return;
+    await user.reload();
+    const { data } = await _roleClient.from('user_roles').select('role').eq('email', user.email).single();
+    if (user.emailVerified && data?.role === 'admin') location.reload();
+    else if (user.emailVerified) document.getElementById('verifyMsg').textContent = '⛔ Access denied. You do not have admin access.';
+    else document.getElementById('verifyMsg').textContent = '⚠️ Not verified yet. Check your inbox.';
+  };
+  window.handleForgotPassword = async function() {
+    const e = document.getElementById('loginEmail').value.trim();
+    if (!e) { document.getElementById('loginError').textContent = 'Enter your email first.'; return; }
+    try { await window._fbPasswordReset(e); document.getElementById('loginError').style.color='#66bb6a'; document.getElementById('loginError').textContent = '✅ Reset email sent!'; }
+    catch(ex) { document.getElementById('loginError').style.color='#f44336'; document.getElementById('loginError').textContent = friendlyErr(ex.code); }
+  };
+  window.handleSignOut = () => window._fbSignOut();
+  function friendlyErr(code) {
+    const m = { 'auth/user-not-found':'No account found.','auth/wrong-password':'Incorrect password.','auth/invalid-credential':'Invalid email or password.','auth/invalid-email':'Invalid email.','auth/too-many-requests':'Too many attempts. Wait a moment.' };
+    return m[code] || 'Something went wrong.';
+  }
+</script>
+<style>
+:root {
+  --bg: #f8f8f8;
+  --surface: #ffffff;
+  --surface2: #f4f4f5;
+  --border: #e4e4e7;
+  --primary: #e23744;
+  --primary-light: #fef2f2;
+  --primary-dark: #c81e2b;
+  --green-accent: #1a8d1a;
+  --green-bright: #22c55e;
+  --green-dim: #f0fdf0;
+  --gold: #f59e0b;
+  --gold-dim: #fffbeb;
+  --red: #ef4444;
+  --red-dim: #fef2f2;
+  --blue: #3b82f6;
+  --blue-dim: #eff6ff;
+  --text: #18181b;
+  --text-mid: #52525b;
+  --text-dim: #a1a1aa;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --radius: 12px;
+  --radius-lg: 16px;
+}
+
+[data-theme="dark"] {
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface2: #27272a;
+  --border: #3f3f46;
+  --primary-light: #2a0a0c;
+  --green-dim: #0a2a0a;
+  --gold-dim: #2a2000;
+  --red-dim: #2a0a0a;
+  --blue-dim: #0a1a2a;
+  --text: #f4f4f5;
+  --text-mid: #a1a1aa;
+  --text-dim: #71717a;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height:100vh;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── AUTH OVERLAY ── */
+#authOverlay {
+  display:flex; align-items:center; justify-content:center;
+  position:fixed; inset:0; z-index:9999;
+  background:linear-gradient(135deg,var(--bg) 0%,var(--surface2) 100%);
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.auth-box {
+  background:var(--surface); border:1px solid var(--border); border-radius:20px;
+  padding:40px 36px; width:100%; max-width:400px; margin:24px;
+  box-shadow:var(--shadow-lg);
+}
+.auth-logo { text-align:center; margin-bottom:28px; }
+.auth-logo-icon { font-size:2.5rem; margin-bottom:8px; }
+.auth-logo-title { font-size:1.6rem; font-weight:700; color:var(--text); }
+.auth-logo-title em { color:var(--green-accent); font-style:normal; }
+.auth-logo-sub { font-size:0.75rem; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-top:4px; font-weight:600; }
+.auth-label { font-size:0.75rem; color:var(--text-mid); display:block; margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.auth-input {
+  width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+  padding:12px 14px; color:var(--text); font-family:inherit; font-size:0.9rem;
+  outline:none; transition:border-color 0.2s; margin-bottom:14px;
+}
+.auth-input:focus { border-color:var(--primary); }
+.auth-btn-primary {
+  width:100%; background:var(--primary); border:none; border-radius:12px;
+  padding:13px; color:white; font-family:inherit; font-weight:700;
+  font-size:0.95rem; cursor:pointer; transition:background 0.2s;
+}
+.auth-btn-primary:hover { background:var(--primary-dark); }
+.auth-btn-secondary {
+  width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+  padding:12px; color:var(--text-mid); font-family:inherit;
+  font-size:0.85rem; cursor:pointer; margin-top:10px; transition:border-color 0.2s;
+}
+.auth-btn-secondary:hover { border-color:var(--primary); }
+.auth-error { font-size:0.82rem; text-align:center; min-height:20px; margin-bottom:10px; color:var(--red); font-weight:500; }
+.auth-link { background:none; border:none; color:var(--primary); font-size:0.82rem; cursor:pointer; font-family:inherit; font-weight:600; text-decoration:underline; }
+
+/* ── HEADER ── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon-wrap {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, #1a8d1a, #22c55e);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+}
+.logo-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.logo-text small {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+.header-right { display:flex; align-items:center; gap:12px; }
+.header-email { font-size:0.75rem; color:var(--text-dim); font-family:inherit; }
+.sign-out-btn {
+  background:var(--red-dim); border:1px solid var(--red); border-radius:8px;
+  padding:6px 12px; color:var(--red); font-family:inherit; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.2s;
+}
+.sign-out-btn:hover { background:var(--red); color:white; }
+.save-indicator { font-size:0.8rem; color:var(--text-dim); font-family:inherit; font-weight:500; transition:color 0.3s; }
+.save-indicator.saving { color:var(--gold); }
+.save-indicator.saved { color:var(--green-bright); }
+
+/* ── TABS ── */
+.main-tabs { display:flex; gap:0; padding:0 24px; border-bottom:1px solid var(--border); background:var(--surface); }
+.main-tab {
+  padding:14px 24px; font-family:inherit; font-size:0.88rem; font-weight:500;
+  color:var(--text-dim); cursor:pointer; border:none; background:none;
+  border-bottom:2px solid transparent; transition:all 0.2s; white-space:nowrap;
+}
+.main-tab:hover { color:var(--primary); }
+.main-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+
+/* ── LAYOUT ── */
+.tab-panel { display:none; padding:24px; max-width:1200px; margin:0 auto; }
+.tab-panel.active { display:block; }
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:20px; flex-wrap:wrap; gap:12px;
+}
+.section-title { font-family:'Playfair Display',serif; font-size:1.2rem; color:var(--text); }
+.section-sub { font-size:0.8rem; color:var(--text-dim); margin-top:3px; }
+
+/* ── BUTTONS ── */
+.btn-green {
+  background:var(--green-accent); border:1px solid var(--green-accent); border-radius:10px;
+  padding:9px 18px; color:white; font-family:inherit;
+  font-size:0.85rem; font-weight:600; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:6px;
+}
+.btn-green:hover { background:var(--green-bright); }
+.btn-ghost {
+  background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+  padding:9px 18px; color:var(--text-mid); font-family:inherit;
+  font-size:0.85rem; cursor:pointer; transition:border-color 0.2s;
+}
+.btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+.btn-danger {
+  background:var(--red-dim); border:1px solid var(--red); border-radius:8px;
+  width:30px; height:30px; color:var(--red); cursor:pointer; font-size:0.85rem;
+  display:flex; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0;
+}
+.btn-danger:hover { background:var(--red); color:white; }
+.btn-icon {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  width:30px; height:30px; color:var(--text-mid); cursor:pointer; font-size:0.85rem;
+  display:flex; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0;
+}
+.btn-icon:hover { border-color:var(--primary); color:var(--primary); }
+
+/* ── CATEGORIES PANEL ── */
+.cat-list { display:flex; flex-direction:column; gap:8px; max-width:560px; margin-bottom:24px; }
+.cat-row {
+  display:flex; align-items:center; gap:10px; background:var(--surface);
+  border:1px solid var(--border); border-radius:12px; padding:12px 14px; transition:all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.cat-row:hover { border-color:var(--primary); }
+.cat-drag-handle { color:var(--text-dim); cursor:grab; font-size:1rem; padding:4px; flex-shrink:0; }
+.cat-drag-handle:active { cursor:grabbing; }
+.cat-icon-display { font-size:1.5rem; width:36px; text-align:center; flex-shrink:0; }
+.cat-name-text { flex:1; font-size:0.95rem; color:var(--text); font-weight:500; }
+.cat-items-count { font-size:0.75rem; color:var(--text-dim); font-family:inherit; flex-shrink:0; font-weight:500; }
+.cat-system-badge { font-size:0.68rem; background:var(--gold-dim); color:var(--gold); border-radius:20px; padding:2px 7px; flex-shrink:0; font-weight:600; }
+
+.add-cat-form {
+  display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; max-width:560px;
+  box-shadow: var(--shadow-sm);
+}
+.field-group { display:flex; flex-direction:column; gap:5px; }
+.field-label { font-size:0.72rem; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.5px; font-weight:600; }
+.form-input {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  padding:9px 12px; color:var(--text); font-family:inherit; font-size:0.88rem; outline:none; transition:all 0.2s;
+}
+.form-input:focus { border-color:var(--primary); background:var(--surface); }
+.emoji-input { width:70px; font-size:1.2rem; text-align:center; }
+.name-input { width:200px; }
+
+/* ── MENU ITEMS PANEL ── */
+.cat-filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.cat-pill {
+  background:var(--surface); border:1px solid var(--border); border-radius:50px;
+  padding:8px 18px; font-size:0.82rem; font-family:inherit;
+  color:var(--text-mid); cursor:pointer; transition:all 0.2s; white-space:nowrap; font-weight:500;
+}
+.cat-pill:hover { border-color:var(--primary); color:var(--primary); }
+.cat-pill.active { background:var(--primary); border-color:var(--primary); color:white; }
+
+.items-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; margin-bottom:20px;
+}
+.item-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  overflow:hidden; transition:all 0.25s;
+  box-shadow: var(--shadow-sm);
+}
+.item-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color:var(--primary); }
+.item-card-media {
+  background:linear-gradient(135deg, #f8f8f8, #e4e4e7);
+  display:flex; align-items:center; justify-content:center;
+  font-size:2.4rem; padding:20px; position:relative; height:90px;
+}
+[data-theme="dark"] .item-card-media {
+  background:linear-gradient(135deg, #27272a, #3f3f46);
+}
+.item-card-media img { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+.item-card-body { padding:14px; }
+.item-card-name { font-size:0.98rem; font-weight:700; color:var(--text); margin-bottom:4px; }
+.item-card-desc { font-size:0.78rem; color:var(--text-dim); line-height:1.4; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.item-card-footer { display:flex; align-items:center; justify-content:space-between; }
+.item-card-price { font-family:inherit; font-size:1rem; color:var(--text); font-weight:700; }
+.item-card-cat { font-size:0.72rem; background:var(--surface2); border:1px solid var(--border); color:var(--text-dim); border-radius:20px; padding:3px 9px; font-weight:500; }
+.item-card-actions { display:flex; gap:6px; margin-top:10px; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200;
+  align-items:center; justify-content:center; padding:24px;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.show { display:flex; }
+.modal-box {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:28px; max-width:520px; width:100%; max-height:90vh; overflow-y:auto;
+  box-shadow: var(--shadow-lg);
+}
+.modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; }
+.modal-title { font-size:1.2rem; font-weight:700; color:var(--text); }
+.modal-close {
+  background:var(--surface2); border:1px solid var(--border); border-radius:50%;
+  width:32px; height:32px; color:var(--text-mid); cursor:pointer; font-size:1rem;
+  display:flex; align-items:center; justify-content:center; font-family:inherit; font-weight:600;
+}
+.modal-close:hover { border-color:var(--primary); }
+.form-field { margin-bottom:16px; }
+.form-field .field-label { display:block; margin-bottom:6px; }
+.form-field .field-label { font-weight:600; }
+.form-field .form-input { width:100%; }
+.form-field select.form-input { cursor:pointer; }
+.form-row { display:flex; gap:12px; }
+.form-row .form-field { flex:1; }
+.emoji-preview { font-size:2.5rem; text-align:center; padding:14px; background:var(--surface2); border-radius:10px; margin-bottom:4px; }
+.modal-actions { display:flex; gap:10px; margin-top:22px; }
+.modal-actions .btn-green, .modal-actions .btn-ghost { flex:1; justify-content:center; }
+
+/* ── TOAST ── */
+.toast-container { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+.toast {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px 18px; min-width:280px; max-width:360px;
+  display:flex; gap:12px; align-items:flex-start;
+  animation:toastIn 0.3s ease; box-shadow:var(--shadow-lg); font-size:0.85rem;
+}
+@keyframes toastIn { from{opacity:0;transform:translateX(30px);} to{opacity:1;transform:translateX(0);} }
+.toast.success { border-left:4px solid var(--green-bright); }
+.toast.error { border-left:4px solid var(--red); }
+
+/* ── INFO BANNER ── */
+.info-banner {
+  background:#fffbeb; border:1px solid #fde68a; border-radius:var(--radius);
+  padding:14px 18px; margin:0 0 20px; font-size:0.82rem; color:#92400e; line-height:1.7;
+}
+.info-banner code { background:#fef3c7; border-radius:4px; padding:2px 6px; font-size:0.78rem; font-weight:600; }
+
+/* ── DRAG STATES ── */
+.cat-row.dragging { opacity:0.4; border-color:var(--green-accent); }
+.cat-row.drag-over { border-color:var(--green-accent); background:var(--green-dim); }
+
+/* ── RESPONSIVE ── */
+@media (max-width:600px) {
+  .tab-panel { padding:16px; }
+  .items-grid { grid-template-columns:1fr; }
+  header { padding:12px 16px; flex-wrap:wrap; gap:12px; }
+  .header-email { display:none; }
+  .form-row { flex-direction:column; gap:0; }
+  .header-right { gap:8px; flex-wrap:wrap; }
+}
+</style>
+</head>
+<body>
+
+<!-- CONFIG -->
+<script>
+  const SUPABASE_URL = 'https://bifohqaceaufxlyfwpgp.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM';
+</script>
+
+<!-- ═══════════════════════ AUTH OVERLAY ═══════════════════════ -->
+<div id="authOverlay" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0a120a,#0f1a0f,#122012);">
+  <!-- Login -->
+  <div id="loginBox" style="
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:40px 36px; width:100%; max-width:400px; margin:24px;
+    box-shadow:var(--shadow-lg);">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="width:64px;height:64px;background:linear-gradient(135deg,#1a8d1a,#22c55e);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 12px;">🌿</div>
+      <div style="font-size:1.6rem;font-weight:700;color:var(--text);">Green Cucina</div>
+      <div style="font-size:0.75rem;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-top:4px;font-weight:600;">Menu Manager</div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="font-size:0.75rem;color:var(--text-mid);display:block;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Email</label>
+      <input id="loginEmail" type="email" placeholder="you@greencucina.com"
+        onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:inherit;font-size:0.9rem;outline:none;transition:border-color 0.2s;"
+        onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"/>
+    </div>
+
+    <div style="margin-bottom:8px;">
+      <label style="font-size:0.75rem;color:var(--text-mid);display:block;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Password</label>
+      <input id="loginPassword" type="password" placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter')handleLogin()"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:inherit;font-size:0.9rem;outline:none;transition:border-color 0.2s;"
+        onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"/>
+    </div>
+
+    <div style="text-align:right;margin-bottom:20px;">
+      <button onclick="handleForgotPassword()"
+        style="background:none;border:none;color:var(--primary);font-size:0.82rem;font-weight:600;cursor:pointer;font-family:inherit;">
+        Forgot password?
+      </button>
+    </div>
+
+    <div id="loginError" style="font-size:0.82rem;text-align:center;min-height:20px;margin-bottom:12px;color:var(--red);font-weight:500;"></div>
+
+    <button id="loginBtn" onclick="handleLogin()" style="
+      width:100%;background:var(--primary);border:none;border-radius:12px;
+      padding:13px;color:white;font-family:inherit;font-weight:700;
+      font-size:0.95rem;cursor:pointer;transition:background 0.2s;"
+      onmouseover="this.style.background='var(--primary-dark)'" onmouseout="this.style.background='var(--primary)'">
+      Sign In
+    </button>
+
+    <div style="margin-top:20px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:0.8rem;color:#b45309;line-height:1.6;font-weight:500;">
+      🔒 Only verified email accounts can access the Menu Manager.
+    </div>
+  </div>
+  <!-- Verify -->
+  <div id="verifyBox" style="display:none;
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:40px 36px; width:100%; max-width:400px; margin:24px; text-align:center;
+    box-shadow:var(--shadow-lg);">
+    <div style="font-size:3rem;margin-bottom:16px;">📧</div>
+    <div style="font-size:1.3rem;font-weight:700;color:var(--text);margin-bottom:8px;">Verify Your Email</div>
+    <div style="font-size:0.85rem;color:var(--text-mid);margin-bottom:6px;">We sent a link to:</div>
+    <div id="verifyEmail" style="font-size:0.85rem;color:var(--gold);margin-bottom:20px;font-weight:600;word-break:break-all;"></div>
+    <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:24px;line-height:1.6;">
+      Click the link in the email, then press <strong style="color:var(--text-mid);">I've Verified</strong>.
+    </div>
+    <button onclick="checkVerified()" style="
+      width:100%;background:var(--green-accent);border:none;border-radius:12px;
+      padding:12px;color:white;font-family:inherit;font-weight:700;
+      font-size:0.9rem;cursor:pointer;margin-bottom:12px;">
+      ✅ I've Verified My Email
+    </button>
+    <button onclick="resendVerification()" style="
+      width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;
+      padding:12px;color:var(--text-mid);font-family:inherit;font-size:0.85rem;font-weight:600;
+      cursor:pointer;margin-bottom:12px;">
+      🔁 Resend Verification Email
+    </button>
+    <button onclick="handleSignOut()" style="
+      background:none;border:none;color:var(--text-dim);font-size:0.82rem;font-weight:600;
+      cursor:pointer;font-family:inherit;text-decoration:underline;">
+      ← Back to Login
+    </button>
+    <div id="verifyMsg" style="margin-top:14px;font-size:0.82rem;color:var(--text-mid);min-height:20px;font-weight:500;"></div>
+</div>
+
+  <div id="restrictBox" style="display:none;
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:40px 36px; width:100%; max-width:400px; margin:24px; text-align:center;
+    box-shadow:var(--shadow-lg);">
+    <div style="font-size:3rem;margin-bottom:16px;">🚫</div>
+    <div style="font-size:1.3rem;font-weight:700;color:var(--text);margin-bottom:8px;">Restricted Access</div>
+    <div style="font-size:0.85rem;color:var(--text-mid);margin-bottom:20px;line-height:1.6;">
+      This page is for verified staff only.<br/>You do not have permission to access this area.
+    </div>
+    <button onclick="handleSignOut()" style="
+      width:100%;background:var(--primary);border:none;border-radius:12px;
+      padding:12px;color:white;font-family:inherit;font-weight:700;
+      font-size:0.9rem;cursor:pointer;">
+      ← Back to Login
+    </button>
+  </div>
+
+</div>
+<!-- ═══════════════════════ APP SHELL ═══════════════════════ -->
+<div id="appShell" style="display:none;">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon-wrap">🌿</div>
+    <div class="logo-text">
+      Green Cucina
+      <small>Menu Manager - Powered by <a href="https://webtool723-beep.github.io/Websites-collection/" style="color: red;">WeCraft Studio</a></small>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="save-indicator" id="saveIndicator">● All saved</span>
+    <button id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode" style="border:none;border-radius:8px;padding:8px 12px;font-size:1rem;background:var(--surface2);border:1px solid var(--border);cursor:pointer;font-family:inherit;color:var(--text-mid);">🌙</button>
+    <span class="header-email" id="authUserEmail"></span>
+    <button class="sign-out-btn" onclick="handleSignOut()">Sign Out</button>
+  </div>
+</header>
+
+<div class="main-tabs">
+  <button class="main-tab active" onclick="switchTab('categories')">📂 Categories</button>
+  <button class="main-tab" onclick="switchTab('items')">🍽️ Menu Items</button>
+  <!---<button class="main-tab" onclick="switchTab('setup')">🗄️ Supabase Setup</button>---  add this line to check supabase connection  -->
+  
+</div>
+
+<!-- ════ CATEGORIES TAB ════ -->
+<div class="tab-panel active" id="tab-categories">
+  <div class="info-banner">
+    📋 <strong>How it works:</strong> Add or remove categories here. The <strong>🌿 All</strong> and <strong>❤️ Favourites</strong> categories are system categories that always appear on the order page — you don't need to add them. Drag rows to reorder. Changes sync to both the Order page and Kitchen in real-time.
+  </div>
+  <div class="section-header">
+    <div>
+      <div class="section-title">Manage Categories</div>
+      <div class="section-sub">Drag to reorder · Click ✕ to remove</div>
+    </div>
+  </div>
+
+  <div class="cat-list" id="catList"></div>
+
+  <!-- Add Category Form -->
+  <div class="add-cat-form">
+    <div class="field-group">
+      <div class="field-label">Icon / Emoji</div>
+      <input id="newCatIcon" class="form-input emoji-input" type="text" placeholder="🍴" maxlength="4"/>
+    </div>
+    <div class="field-group" style="flex:1;">
+      <div class="field-label">Category Name</div>
+      <input id="newCatName" class="form-input" type="text" placeholder="e.g. Specials" style="width:100%;"
+        onkeydown="if(event.key==='Enter')addCategory()"/>
+    </div>
+    <div class="field-group" style="align-self:flex-end;">
+      <button class="btn-green" onclick="addCategory()">+ Add Category</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MENU ITEMS TAB ════ -->
+<div class="tab-panel" id="tab-items">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Menu Items</div>
+      <div class="section-sub">Add, edit or remove items. Changes update on both pages instantly.</div>
+    </div>
+    <button class="btn-green" onclick="openItemModal()">+ Add Item</button>
+  </div>
+  <div class="cat-filter-bar" id="itemFilterBar"></div>
+  <div class="items-grid" id="itemsGrid"></div>
+</div>
+
+<!-- ════ SUPABASE SETUP TAB ════ -->
+<div class="tab-panel" id="tab-setup">
+  <div class="section-title" style="margin-bottom:20px;">🗄️ Supabase Database Setup</div>
+
+  <div class="info-banner" style="margin-bottom:20px;">
+    Run the SQL below <strong>once</strong> in your Supabase project → SQL Editor. This creates the tables and inserts the seed rows that all three pages (Order, Kitchen, Admin) depend on.
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:0.85rem;color:var(--text-mid);font-weight:600;">Step 1 — Create Tables + Seed Rows</div>
+      <button onclick="copySQL('setupSQL')" class="btn-ghost" style="padding:6px 14px;font-size:0.8rem;">📋 Copy SQL</button>
+    </div>
+    <pre id="setupSQL" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;font-family:inherit;font-size:0.78rem;color:var(--green-bright);overflow-x:auto;white-space:pre;line-height:1.7;">-- ① settings table (menu_data + store_status)
+create table if not exists public.settings (
+  key        text primary key,
+  value      text,
+  out_of_stock text default '[]'
+);
+
+-- Seed store_status (open by default, no items out of stock)
+insert into public.settings (key, value, out_of_stock)
+values ('store_status', 'open', '[]')
+on conflict (key) do nothing;
+
+-- Seed menu_data with an empty placeholder
+-- (the Admin page will overwrite this with real menu data on first save)
+insert into public.settings (key, value)
+values ('menu_data', '{"version":1,"categories":[],"items":[]}')
+on conflict (key) do nothing;
+
+-- ② orders table
+create table if not exists public.orders (
+  id           bigserial primary key,
+  order_id     text unique not null,
+  table_no     text,
+  phone_no     text,
+  customer_name  text,
+  customer_email text,
+  user_id      text,
+  items        jsonb,
+  total        numeric,
+  note         text,
+  status       text default 'pending',
+  created_at   timestamptz default now()
+);
+
+-- ③ user_favourites table
+create table if not exists public.user_favourites (
+  user_id   text primary key,
+  item_ids  integer[] default '{}'
+);
+
+-- ④ Enable Row Level Security and allow all reads/writes
+-- (tighten these for production with proper policies)
+alter table public.settings        enable row level security;
+alter table public.orders          enable row level security;
+alter table public.user_favourites enable row level security;
+
+-- Allow full access (public) — refine for production
+create policy "allow_all_settings"        on public.settings        for all using (true) with check (true);
+create policy "allow_all_orders"          on public.orders          for all using (true) with check (true);
+create policy "allow_all_user_favourites" on public.user_favourites for all using (true) with check (true);
+
+-- ⑤ Enable real-time replication on all tables
+alter publication supabase_realtime add table public.settings;
+alter publication supabase_realtime add table public.orders;</pre>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
+    <div style="font-size:0.85rem;color:var(--text-mid);font-weight:600;margin-bottom:10px;">Step 2 — Get your Supabase credentials</div>
+    <ol style="font-size:0.85rem;color:var(--text-dim);line-height:2;padding-left:20px;">
+      <li>Go to <strong style="color:var(--text-mid);">app.supabase.com</strong> → your project → Settings → API</li>
+      <li>Copy <strong style="color:var(--text-mid);">Project URL</strong> and <strong style="color:var(--text-mid);">anon / public key</strong></li>
+      <li>Paste both into the <code style="background:var(--surface2);border-radius:4px;padding:2px 6px;font-family:inherit;font-size:0.75rem;">SUPABASE_URL</code> and <code style="background:var(--surface2);border-radius:4px;padding:2px 6px;font-family:inherit;font-size:0.75rem;">SUPABASE_ANON_KEY</code> constants at the top of all three files</li>
+    </ol>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
+    <div style="font-size:0.85rem;color:var(--text-mid);font-weight:600;margin-bottom:10px;">Step 3 — Test the connection</div>
+    <button onclick="testConnection()" class="btn-green" style="margin-bottom:14px;">🔌 Test Supabase Connection</button>
+    <div id="testResult" style="font-size:0.82rem;min-height:20px;color:var(--text-dim);font-family:inherit;"></div>
+  </div>
+
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-lg);padding:20px;">
+    <div style="font-size:0.85rem;color:#b45309;font-weight:600;margin-bottom:8px;">⚡ How it all connects</div>
+    <div style="font-size:0.82rem;color:#92400e;line-height:1.9;">
+      <div>• <strong style="color:#b45309;">Admin page</strong> → writes <code style="background:#fef3c7;border-radius:3px;padding:1px 4px;font-family:inherit;">settings.menu_data</code> (JSON blob with all categories + items)</div>
+      <div>• <strong style="color:#b45309;">Order page</strong> → reads <code style="background:#fef3c7;border-radius:3px;padding:1px 4px;font-family:inherit;">settings.menu_data</code> on load; subscribes for live updates. Writes to <code style="background:#fef3c7;border-radius:3px;padding:1px 4px;font-family:inherit;">orders</code> table on each order.</div>
+      <div>• <strong style="color:#b45309;">Kitchen page</strong> → reads today's orders; subscribes for new ones. Updates <code style="background:#fef3c7;border-radius:3px;padding:1px 4px;font-family:inherit;">settings.store_status</code> (open/closed + out_of_stock list). Reads menu for Edit Order dropdown.</div>
+      <div>• <strong style="color:#b45309;">Out-of-stock</strong> toggled in Kitchen → instantly reflected on Order page via real-time subscription to <code style="background:#fef3c7;border-radius:3px;padding:1px 4px;font-family:inherit;">settings.store_status</code></div>
+      <div>• <strong style="color:#b45309;">Menu changes</strong> in Admin → both Order and Kitchen pages update live within seconds</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end appShell -->
+
+<!-- ════ ITEM MODAL ════ -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Add Menu Item</div>
+      <button class="modal-close" onclick="closeItemModal()">✕</button>
+    </div>
+
+    <div class="form-row">
+      <div class="form-field" style="flex:0 0 110px;">
+        <div class="emoji-preview" id="emojiPreview">🍽️</div>
+        <div class="field-label" style="text-align:center;">Emoji</div>
+        <input id="itemEmoji" class="form-input emoji-input" type="text" placeholder="🍽️"
+          maxlength="4" oninput="document.getElementById('emojiPreview').textContent = this.value || '🍽️'"
+          style="width:100%;text-align:center;"/>
+      </div>
+      <div class="form-field" style="flex:1;">
+        <label class="field-label">Item Name *</label>
+        <input id="itemName" class="form-input" type="text" placeholder="e.g. Avocado Toast"/>
+        <label class="field-label" style="margin-top:10px;">Category *</label>
+        <select id="itemCat" class="form-input">
+          <option value="">— Select category —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-field">
+      <label class="field-label">Description</label>
+      <textarea id="itemDesc" class="form-input" rows="3" placeholder="Describe the dish, ingredients, taste…" style="resize:vertical;line-height:1.5;"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-field">
+        <label class="field-label">Price (₹) *</label>
+        <input id="itemPrice" class="form-input" type="number" min="1" placeholder="199"/>
+      </div>
+      <div class="form-field">
+        <label class="field-label">Image URL <span style="color:var(--text-dim);font-size:0.7rem;">(optional, overrides emoji)</span></label>
+        <input id="itemImage" class="form-input" type="url" placeholder="https://…"
+          oninput="previewImage(this.value)"/>
+      </div>
+    </div>
+
+    <div id="imagePreviewWrap" style="display:none;margin-bottom:10px;">
+      <img id="imagePreview" src="" alt="Preview" style="width:100%;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);"/>
+    </div>
+
+    <div id="itemFormError" style="color:var(--red);font-size:0.82rem;min-height:18px;margin-bottom:4px;font-weight:500;"></div>
+
+    <div class="modal-actions">
+      <button class="btn-green" onclick="saveItem()">💾 Save Item</button>
+      <button class="btn-ghost" onclick="closeItemModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// DARK MODE TOGGLE
+// ═══════════════════════════════════════════
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('gc-theme', next);
+  document.getElementById('themeToggle').textContent = next === 'dark' ? '☀️' : '🌙';
+}
+(function initThemeIcon() {
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  setTimeout(() => {
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = current === 'dark' ? '☀️' : '🌙';
+  }, 100);
+})();
+
+// ═══════════════════════════════════════════
+// DEFAULT MENU DATA (fallback if Supabase empty)
+// ═══════════════════════════════════════════
+const DEFAULT_MENU_DATA = {
+  version: 1,
+  categories: [
+    { id: 'Breakfast', name: 'Breakfast', icon: '🌅' },
+    { id: 'Mains',     name: 'Mains',     icon: '🍽️' },
+    { id: 'Drinks',    name: 'Drinks',    icon: '☕' },
+    { id: 'Desserts',  name: 'Desserts',  icon: '🍰' }
+  ],
+  items: [
+    { id:1,  cat:'Breakfast', emoji:'🥑', name:'Avocado Sourdough Toast',  desc:'Smashed avocado, cherry tomatoes, feta & everything-bagel seasoning on house sourdough.', price:180 },
+    { id:2,  cat:'Breakfast', emoji:'🥞', name:'Fluffy Ricotta Pancakes',  desc:'Light ricotta pancakes with maple syrup, fresh berries & whipped cream.', price:220 },
+    { id:3,  cat:'Breakfast', emoji:'🍳', name:'Green Shakshuka',           desc:'Poached eggs in a vibrant spinach-herb sauce with feta and warm bread.', price:200 },
+    { id:4,  cat:'Mains',     emoji:'🍝', name:'Pesto Pasta al Verde',      desc:'Fusilli in homemade basil-walnut pesto, sun-dried tomatoes & parmesan shavings.', price:280 },
+    { id:5,  cat:'Mains',     emoji:'🥗', name:'The Big Green Bowl',        desc:'Quinoa, roasted veggies, hummus, pickled red onions & tahini dressing.', price:250 },
+    { id:6,  cat:'Mains',     emoji:'🍕', name:'Margherita Rustica',        desc:'Stone-baked thin-crust pizza with San Marzano tomato, buffalo mozzarella & fresh basil.', price:300 },
+    { id:7,  cat:'Drinks',   emoji:'☕', name:'Single Origin Espresso',    desc:'Freshly pulled from Coorg-sourced Arabica beans. Bold, smooth, perfect.', price:90 },
+    { id:8,  cat:'Drinks',   emoji:'🍵', name:'Matcha Latte',              desc:'Ceremonial-grade matcha whisked with steamed oat milk & a hint of honey.', price:160 },
+    { id:9,  cat:'Drinks',   emoji:'🥤', name:'Garden Green Smoothie',     desc:'Spinach, banana, mango, ginger & coconut water — energise your day.', price:140 },
+    { id:10, cat:'Desserts', emoji:'🍮', name:'Tiramisu Classico',         desc:'Classic Italian tiramisu with mascarpone, espresso-soaked ladyfingers & cocoa dust.', price:180 },
+    { id:11, cat:'Desserts', emoji:'🍰', name:'Pistachio Panna Cotta',     desc:'Silky vanilla panna cotta with a pistachio crumble and rose compote.', price:160 },
+    { id:12, cat:'Desserts', emoji:'🍫', name:'Dark Choco Fondant',        desc:'Warm 70% dark chocolate lava cake with vanilla bean ice cream & caramel drizzle.', price:200 }
+  ]
+};
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let supabaseClient = null;
+let menuData = JSON.parse(JSON.stringify(DEFAULT_MENU_DATA)); // deep copy
+let activeItemFilter = 'All';
+let editingItemId = null;
+let saveTimer = null;
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+window.adminInit = async function() {
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    await loadMenuData();
+  } catch(e) { console.error('Supabase error:', e); showToast('⚠️', 'Using offline mode', 'error'); }
+  renderAll();
+};
+
+// ═══════════════════════════════════════════
+// SUPABASE LOAD / SAVE
+// ═══════════════════════════════════════════
+async function loadMenuData() {
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.from('settings').select('value').eq('key', 'menu_data').single();
+  if (error && error.code !== 'PGRST116') { console.error('Load error:', error); return; }
+  if (data && data.value) {
+    try { menuData = JSON.parse(data.value); } catch(e) { console.error('Parse error:', e); }
+  }
+  // Ensure items have numeric IDs
+  menuData.items = menuData.items.map(i => ({ ...i, id: parseInt(i.id) }));
+}
+
+async function saveMenuData() {
+  setSaveIndicator('saving');
+  if (!supabaseClient) { setSaveIndicator('saved'); return; }
+  const payload = JSON.stringify(menuData);
+  const { error } = await supabaseClient.from('settings')
+    .upsert({ key: 'menu_data', value: payload }, { onConflict: 'key' });
+  if (error) { console.error('Save error:', error); showToast('❌', 'Save failed', 'error'); setSaveIndicator(''); return; }
+  setSaveIndicator('saved');
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  setSaveIndicator('saving');
+  saveTimer = setTimeout(() => saveMenuData(), 800);
+}
+
+function setSaveIndicator(state) {
+  const el = document.getElementById('saveIndicator');
+  el.className = 'save-indicator' + (state ? ' ' + state : '');
+  if (state === 'saving') el.textContent = '⟳ Saving…';
+  else if (state === 'saved') el.textContent = '✓ All saved';
+  else el.textContent = '● All saved';
+}
+
+// ═══════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════
+function renderAll() {
+  renderCatList();
+  renderItemFilterBar();
+  renderItemsGrid();
+}
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+function switchTab(tab) {
+  const tabs = ['categories','items','setup'];
+  document.querySelectorAll('.main-tab').forEach((el,i) => el.classList.toggle('active', tabs[i] === tab));
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'items') renderItemFilterBar();
+}
+
+function copySQL(elId) {
+  const text = document.getElementById(elId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('📋', 'SQL copied to clipboard!', 'success');
+  }).catch(() => {
+    showToast('⚠️', 'Copy failed — select text manually', 'error');
+  });
+}
+
+async function testConnection() {
+  const el = document.getElementById('testResult');
+  el.textContent = '⟳ Testing…'; el.style.color = 'var(--text-dim)';
+  if (!supabaseClient) { el.textContent = '❌ Supabase not initialised. Check your URL and key.'; el.style.color = 'var(--red)'; return; }
+  try {
+    const { data, error } = await supabaseClient.from('settings').select('key').limit(1);
+    if (error) { el.textContent = '❌ Error: ' + error.message; el.style.color = 'var(--red)'; }
+    else { el.textContent = '✅ Connected! settings table is reachable.'; el.style.color = 'var(--green-bright)'; }
+  } catch(e) { el.textContent = '❌ ' + e.message; el.style.color = 'var(--red)'; }
+}
+
+// ═══════════════════════════════════════════
+// CATEGORIES
+// ═══════════════════════════════════════════
+function renderCatList() {
+  const el = document.getElementById('catList');
+  const SYSTEM_CATS = ['All', 'Favourites'];
+
+  // System cats (not editable)
+  const systemHtml = [
+    { id:'All', name:'All', icon:'🌿' },
+    { id:'Favourites', name:'Favourites', icon:'❤️' }
+  ].map(cat => `
+    <div class="cat-row" style="opacity:0.6;">
+      <span class="cat-drag-handle" style="cursor:default;">⠿</span>
+      <span class="cat-icon-display">${cat.icon}</span>
+      <span class="cat-name-text">${cat.name}</span>
+      <span class="cat-system-badge">System</span>
+    </div>`).join('');
+
+  // User cats (draggable)
+  const userHtml = menuData.categories.map((cat, idx) => {
+    const count = menuData.items.filter(i => i.cat === cat.id).length;
+    return `
+    <div class="cat-row" draggable="true" data-idx="${idx}"
+      ondragstart="onDragStart(event,${idx})" ondragover="onDragOver(event)"
+      ondragleave="onDragLeave(event)" ondrop="onDrop(event,${idx})" ondragend="onDragEnd(event)">
+      <span class="cat-drag-handle">⠿</span>
+      <span class="cat-icon-display">${cat.icon || '📁'}</span>
+      <span class="cat-name-text">${cat.name}</span>
+      <span class="cat-items-count">${count} item${count !== 1 ? 's' : ''}</span>
+      <button class="btn-icon" onclick="editCategoryInline(${idx})" title="Edit">✏️</button>
+      <button class="btn-danger" onclick="removeCategory(${idx})" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = systemHtml + userHtml;
+}
+
+let dragSrcIdx = null;
+function onDragStart(e, idx) { dragSrcIdx = idx; e.currentTarget.classList.add('dragging'); }
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.cat-row').forEach(el => el.classList.remove('drag-over')); }
+function onDrop(e, targetIdx) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+  const cats = [...menuData.categories];
+  const [moved] = cats.splice(dragSrcIdx, 1);
+  cats.splice(targetIdx, 0, moved);
+  menuData.categories = cats;
+  dragSrcIdx = null;
+  renderCatList();
+  renderItemFilterBar();
+  scheduleSave();
+}
+
+function addCategory() {
+  const icon = document.getElementById('newCatIcon').value.trim() || '📁';
+  const name = document.getElementById('newCatName').value.trim();
+  if (!name) { showToast('⚠️', 'Category name is required', 'error'); return; }
+  const id = name.replace(/\s+/g, '_');
+  if (menuData.categories.find(c => c.id === id || c.name.toLowerCase() === name.toLowerCase())) {
+    showToast('⚠️', 'Category already exists', 'error'); return;
+  }
+  menuData.categories.push({ id, name, icon });
+  document.getElementById('newCatIcon').value = '';
+  document.getElementById('newCatName').value = '';
+  renderCatList();
+  renderItemFilterBar();
+  renderItemCatSelect();
+  scheduleSave();
+  showToast('✅', `"${name}" category added`, 'success');
+}
+
+function removeCategory(idx) {
+  const cat = menuData.categories[idx];
+  const count = menuData.items.filter(i => i.cat === cat.id).length;
+  const msg = count > 0
+    ? `Remove "${cat.name}" category? The ${count} item(s) in it will also be deleted.`
+    : `Remove "${cat.name}" category?`;
+  if (!confirm(msg)) return;
+  if (count > 0) menuData.items = menuData.items.filter(i => i.cat !== cat.id);
+  menuData.categories.splice(idx, 1);
+  renderAll();
+  scheduleSave();
+  showToast('🗑️', `"${cat.name}" removed`, 'success');
+}
+
+function editCategoryInline(idx) {
+  const cat = menuData.categories[idx];
+  const newIcon = prompt('Edit icon (emoji):', cat.icon);
+  if (newIcon === null) return;
+  const newName = prompt('Edit name:', cat.name);
+  if (newName === null || !newName.trim()) return;
+  const oldId = cat.id;
+  const newId = newName.trim().replace(/\s+/g, '_');
+  // Update items referencing old id
+  menuData.items.forEach(item => { if (item.cat === oldId) item.cat = newId; });
+  menuData.categories[idx] = { id: newId, name: newName.trim(), icon: newIcon.trim() || '📁' };
+  renderAll();
+  scheduleSave();
+  showToast('✅', `Category updated`, 'success');
+}
+
+// ═══════════════════════════════════════════
+// MENU ITEMS
+// ═══════════════════════════════════════════
+function renderItemFilterBar() {
+  const el = document.getElementById('itemFilterBar');
+  const allCats = ['All', ...menuData.categories.map(c => c.id)];
+  el.innerHTML = allCats.map(id => {
+    const label = id === 'All' ? '🌿 All' : (menuData.categories.find(c => c.id === id)?.icon + ' ' + id);
+    return `<button class="cat-pill ${activeItemFilter === id ? 'active' : ''}" onclick="setItemFilter('${id}')">${label}</button>`;
+  }).join('');
+}
+
+function setItemFilter(cat) {
+  activeItemFilter = cat;
+  renderItemFilterBar();
+  renderItemsGrid();
+}
+
+function renderItemsGrid() {
+  const el = document.getElementById('itemsGrid');
+  const filtered = activeItemFilter === 'All' ? menuData.items : menuData.items.filter(i => i.cat === activeItemFilter);
+  if (filtered.length === 0) {
+    el.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--text-dim);">
+      <div style="font-size:3rem;margin-bottom:12px;">🍽️</div>
+      <div>No items in this category yet</div>
+      <div style="font-size:0.82rem;margin-top:6px;color:var(--text-dim);">Click "+ Add Item" to get started</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = filtered.map(item => {
+    const cat = menuData.categories.find(c => c.id === item.cat);
+    const catLabel = cat ? (cat.icon + ' ' + cat.name) : item.cat;
+    const mediaHtml = item.image
+      ? `<img src="${item.image}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:0;">`
+      : item.emoji || '🍽️';
+    return `
+      <div class="item-card">
+        <div class="item-card-media">${mediaHtml}</div>
+        <div class="item-card-body">
+          <div class="item-card-name">${item.name}</div>
+          <div class="item-card-desc">${item.desc || 'No description'}</div>
+          <div class="item-card-footer">
+            <div class="item-card-price">₹${item.price}</div>
+            <div class="item-card-cat">${catLabel}</div>
+          </div>
+          <div class="item-card-actions">
+            <button class="btn-icon" onclick="openItemModal(${item.id})" title="Edit" style="flex:1;width:auto;border-radius:8px;font-size:0.8rem;gap:4px;">✏️ Edit</button>
+            <button class="btn-danger" onclick="deleteItem(${item.id})" title="Delete">✕</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// ITEM MODAL
+// ═══════════════════════════════════════════
+function openItemModal(itemId = null) {
+  editingItemId = itemId;
+  document.getElementById('modalTitle').textContent = itemId ? 'Edit Menu Item' : 'Add Menu Item';
+  document.getElementById('itemFormError').textContent = '';
+  document.getElementById('imagePreviewWrap').style.display = 'none';
+
+  // Populate category select
+  renderItemCatSelect();
+
+  if (itemId) {
+    const item = menuData.items.find(i => i.id === itemId);
+    if (!item) return;
+    document.getElementById('itemEmoji').value = item.emoji || '';
+    document.getElementById('emojiPreview').textContent = item.emoji || '🍽️';
+    document.getElementById('itemName').value = item.name || '';
+    document.getElementById('itemCat').value = item.cat || '';
+    document.getElementById('itemDesc').value = item.desc || '';
+    document.getElementById('itemPrice').value = item.price || '';
+    document.getElementById('itemImage').value = item.image || '';
+    if (item.image) {
+      document.getElementById('imagePreview').src = item.image;
+      document.getElementById('imagePreviewWrap').style.display = 'block';
+    }
+  } else {
+    document.getElementById('itemEmoji').value = '';
+    document.getElementById('emojiPreview').textContent = '🍽️';
+    document.getElementById('itemName').value = '';
+    document.getElementById('itemCat').value = activeItemFilter !== 'All' ? activeItemFilter : '';
+    document.getElementById('itemDesc').value = '';
+    document.getElementById('itemPrice').value = '';
+    document.getElementById('itemImage').value = '';
+  }
+  document.getElementById('itemModal').classList.add('show');
+}
+
+function renderItemCatSelect() {
+  const sel = document.getElementById('itemCat');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Select category —</option>' +
+    menuData.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function closeItemModal() {
+  document.getElementById('itemModal').classList.remove('show');
+  editingItemId = null;
+}
+
+function previewImage(url) {
+  const wrap = document.getElementById('imagePreviewWrap');
+  const img  = document.getElementById('imagePreview');
+  if (url) { img.src = url; wrap.style.display = 'block'; }
+  else wrap.style.display = 'none';
+}
+
+function saveItem() {
+  const name  = document.getElementById('itemName').value.trim();
+  const cat   = document.getElementById('itemCat').value;
+  const price = parseInt(document.getElementById('itemPrice').value);
+  const emoji = document.getElementById('itemEmoji').value.trim() || '🍽️';
+  const desc  = document.getElementById('itemDesc').value.trim();
+  const image = document.getElementById('itemImage').value.trim();
+  const errEl = document.getElementById('itemFormError');
+
+  if (!name)          { errEl.textContent = '⚠️ Item name is required.'; return; }
+  if (!cat)           { errEl.textContent = '⚠️ Please select a category.'; return; }
+  if (!price || price < 1) { errEl.textContent = '⚠️ Please enter a valid price.'; return; }
+  errEl.textContent = '';
+
+  if (editingItemId) {
+    const item = menuData.items.find(i => i.id === editingItemId);
+    if (item) { item.name = name; item.cat = cat; item.price = price; item.emoji = emoji; item.desc = desc; item.image = image || undefined; }
+    showToast('✅', `"${name}" updated`, 'success');
+  } else {
+    const newId = menuData.items.length > 0 ? Math.max(...menuData.items.map(i => i.id)) + 1 : 1;
+    const newItem = { id: newId, cat, emoji, name, desc, price };
+    if (image) newItem.image = image;
+    menuData.items.push(newItem);
+    showToast('✅', `"${name}" added`, 'success');
+  }
+
+  closeItemModal();
+  renderItemsGrid();
+  renderCatList(); // update item counts
+  scheduleSave();
+}
+
+function deleteItem(itemId) {
+  const item = menuData.items.find(i => i.id === itemId);
+  if (!item) return;
+  if (!confirm(`Delete "${item.name}"?`)) return;
+  menuData.items = menuData.items.filter(i => i.id !== itemId);
+  renderItemsGrid();
+  renderCatList();
+  scheduleSave();
+  showToast('🗑️', `"${item.name}" deleted`, 'success');
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+function showToast(icon, msg, type = '') {
+  const tc = document.getElementById('toastContainer');
+  const t  = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${msg}</span>`;
+  tc.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// Close modal on backdrop click
+document.getElementById('itemModal').addEventListener('click', function(e) {
+  if (e.target === this) closeItemModal();
+});
+</script>
+</body>
+</html>
