@@ -42,6 +42,7 @@
       const avatar = document.getElementById('headerAvatar');
       avatar.textContent = (user.displayName || user.email)[0].toUpperCase();
       if (guestBanner) guestBanner.style.display = 'none';
+      await supabase.from('user_roles').upsert({ email: user.email, role: 'customer' }, { onConflict: 'email', ignoreDuplicates: true });
       if (typeof window.loadFavourites === 'function') window.loadFavourites();
       if (typeof window.loadUserOrders === 'function') window.loadUserOrders();
     } else {
