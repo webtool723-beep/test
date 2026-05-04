@@ -29,6 +29,8 @@
   window._googleProvider = googleProvider;
   window._firebaseFns = { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, signInWithPopup, updateProfile };
 
+const _roleClient = supabase.createClient('https://bifohqaceaufxlyfwpgp.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZm9ocWFjZWF1ZnhseWZ3cGdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NzgyNjcsImV4cCI6MjA5MzA1NDI2N30.yx3jrNHPUuBw2960anvnAzVkDvDGBnuq01NbFkXJ_TM');
+
  onAuthStateChanged(auth, async (user) => {
     window._currentUser = user;
     const btn = document.getElementById('authHeaderBtn');
@@ -42,7 +44,7 @@
       const avatar = document.getElementById('headerAvatar');
       avatar.textContent = (user.displayName || user.email)[0].toUpperCase();
       if (guestBanner) guestBanner.style.display = 'none';
-      await supabase.from('user_roles').upsert({ email: user.email, role: 'customer' }, { onConflict: 'email', ignoreDuplicates: true });
+     await _roleClient.from('user_roles').upsert({ email: user.email, role: 'customer' }, { onConflict: 'email', ignoreDuplicates: true });
       if (typeof window.loadFavourites === 'function') window.loadFavourites();
       if (typeof window.loadUserOrders === 'function') window.loadUserOrders();
     } else {
