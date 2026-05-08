@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoPin</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #2a2a38;
+    --accent: #00e5a0;
+    --accent2: #ff4d6d;
+    --text: #f0f0f8;
+    --muted: #6b6b88;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 40px;
+    gap: 20px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .header {
+    text-align: center;
+    z-index: 1;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent) 0%, #00b4d8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 4px;
+    font-family: var(--mono);
+    letter-spacing: 0.05em;
+  }
+
+  /* Map container */
+  #map-container {
+    width: 100%;
+    max-width: 520px;
+    height: 320px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+    background: var(--surface);
+    display: none;
+  }
+
+  #map-container.visible { display: block; }
+
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Click-to-place hint */
+  .map-hint {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 5px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    z-index: 500;
+    pointer-events: none;
+    letter-spacing: 0.04em;
+    border: 1px solid rgba(0,229,160,0.2);
+  }
+
+  /* Coord card */
+  .coord-card {
+    width: 100%;
+    max-width: 520px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    z-index: 1;
+    display: none;
+    gap: 16px;
+    flex-direction: column;
+  }
+
+  .coord-card.visible { display: flex; }
+
+  .coord-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .coord-item {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .coord-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 4px;
+  }
+
+  .coord-value {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+  }
+
+  /* Buttons */
+  .btn-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border: none;
+    transition: all 0.18s ease;
+    text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0a0f;
+  }
+
+  .btn-primary:hover {
+    background: #00ffb3;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0,229,160,0.3);
+  }
+
+  .btn-confirm {
+    background: transparent;
+    color: var(--accent2);
+    border: 1.5px solid var(--accent2);
+  }
+
+  .btn-confirm:hover:not(:disabled) {
+    background: var(--accent2);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(255,77,109,0.3);
+  }
+
+  .btn-confirm:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* Map link */
+  .map-link-box {
+    width: 100%;
+    max-width: 520px;
+    background: var(--surface);
+    border: 1.5px solid var(--accent);
+    border-radius: 12px;
+    padding: 18px 20px;
+    z-index: 1;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    animation: slideIn 0.3s ease;
+  }
+
+  .map-link-box.visible { display: flex; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .map-link-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+
+  .map-link-url {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  .map-link-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px;
+    background: var(--accent);
+    color: #0a0a0f;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: all 0.18s ease;
+  }
+
+  .map-link-btn:hover {
+    background: #00ffb3;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(0,229,160,0.35);
+  }
+
+  /* Locate button */
+  #locate-btn {
+    z-index: 1;
+    padding: 14px 32px;
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+
+  #locate-btn:hover {
+    background: #00ffb3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,229,160,0.35);
+  }
+
+  #locate-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  #status {
+    z-index: 1;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-align: center;
+    min-height: 18px;
+    letter-spacing: 0.04em;
+  }
+
+  #status.error { color: var(--accent2); }
+
+  .spinner {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 2px solid var(--muted);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Custom marker style override */
+  .custom-pin {
+    background: none;
+    border: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⌖ GeoPin</h1>
+  <p>detect → drag pin → confirm → open</p>
+</div>
+
+<button id="locate-btn" onclick="getLocation()">📍 Detect My Location</button>
+<div id="status"></div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div class="map-hint" id="map-hint">drag the pin or click anywhere to move it</div>
+</div>
+
+<div id="coord-card" class="coord-card">
+  <div class="coord-row">
+    <div class="coord-item">
+      <div class="coord-label">Latitude</div>
+      <div class="coord-value" id="lat-val">—</div>
+    </div>
+    <div class="coord-item">
+      <div class="coord-label">Longitude</div>
+      <div class="coord-value" id="lng-val">—</div>
+    </div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="getLocation()">🔄 Re-detect</button>
+    <button class="btn btn-confirm" id="confirm-btn" onclick="confirmLocation()" disabled>✓ Confirm Location</button>
+  </div>
+</div>
+
+<div id="map-link-box" class="map-link-box">
+  <div class="map-link-label">✦ Confirmed Location Link</div>
+  <div class="map-link-url" id="map-url-text"></div>
+  <a id="open-maps-btn" class="map-link-btn" href="#" target="_blank">
+    🗺 Open in Google Maps
+  </a>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  let map, marker;
+  let currentLat = null, currentLng = null;
+
+  // Custom SVG pin icon
+  function makePinIcon() {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">
+        <filter id="shadow" x="-40%" y="-20%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.5)"/>
+        </filter>
+        <g filter="url(#shadow)">
+          <path d="M18 2C9.716 2 3 8.716 3 17c0 10.5 15 29 15 29S33 27.5 33 17C33 8.716 26.284 2 18 2z"
+                fill="#ff4d6d"/>
+          <circle cx="18" cy="17" r="7" fill="#fff"/>
+          <circle cx="18" cy="17" r="4" fill="#ff4d6d"/>
+        </g>
+      </svg>`;
+    return L.divIcon({
+      html: svg,
+      className: 'custom-pin',
+      iconSize: [36, 48],
+      iconAnchor: [18, 48],
+      popupAnchor: [0, -48]
+    });
+  }
+
+  function setStatus(msg, isError = false) {
+    const el = document.getElementById('status');
+    el.innerHTML = msg;
+    el.className = isError ? 'error' : '';
+  }
+
+  function updateCoords(lat, lng) {
+    currentLat = lat;
+    currentLng = lng;
+    document.getElementById('lat-val').textContent = lat.toFixed(6);
+    document.getElementById('lng-val').textContent = lng.toFixed(6);
+    document.getElementById('confirm-btn').disabled = false;
+    document.getElementById('map-link-box').classList.remove('visible');
+  }
+
+  function getLocation() {
+    if (!navigator.geolocation) {
+      setStatus('Geolocation not supported by your browser.', true);
+      return;
+    }
+    const btn = document.getElementById('locate-btn');
+    btn.disabled = true;
+    setStatus('<span class="spinner"></span>Detecting your location…');
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        btn.disabled = false;
+        setStatus('');
+
+        updateCoords(lat, lng);
+        document.getElementById('map-container').classList.add('visible');
+        document.getElementById('coord-card').classList.add('visible');
+
+        if (!map) {
+          map = L.map('map', { zoomControl: true, attributionControl: false }).setView([lat, lng], 17);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+          // Place draggable marker
+          marker = L.marker([lat, lng], {
+            icon: makePinIcon(),
+            draggable: true
+          }).addTo(map);
+
+          // Update coords while dragging
+          marker.on('drag', e => {
+            const pos = e.target.getLatLng();
+            updateCoords(pos.lat, pos.lng);
+          });
+
+          marker.on('dragend', e => {
+            const pos = e.target.getLatLng();
+            updateCoords(pos.lat, pos.lng);
+            map.panTo(pos);
+          });
+
+          // Click anywhere on map to move the pin
+          map.on('click', e => {
+            marker.setLatLng(e.latlng);
+            updateCoords(e.latlng.lat, e.latlng.lng);
+            map.panTo(e.latlng);
+          });
+
+          // Fade out hint after 4 seconds
+          setTimeout(() => {
+            const hint = document.getElementById('map-hint');
+            if (hint) hint.style.opacity = '0';
+            hint.style.transition = 'opacity 0.8s ease';
+          }, 4000);
+
+        } else {
+          // Re-detect: move existing marker
+          marker.setLatLng([lat, lng]);
+          map.setView([lat, lng], 17);
+        }
+      },
+      err => {
+        btn.disabled = false;
+        const msgs = {
+          1: 'Location access denied. Please allow location in your browser.',
+          2: 'Location unavailable. Try again.',
+          3: 'Request timed out. Try again.'
+        };
+        setStatus(msgs[err.code] || 'Unknown error.', true);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  function confirmLocation() {
+    if (currentLat === null || currentLng === null) return;
+    const lat = currentLat.toFixed(6);
+    const lng = currentLng.toFixed(6);
+    const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}&ll=${lat},${lng}&z=17`;
+
+    document.getElementById('map-url-text').textContent = mapsUrl;
+    document.getElementById('open-maps-btn').href = mapsUrl;
+    document.getElementById('map-link-box').classList.add('visible');
+    document.getElementById('map-link-box').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+
+</body>
+</html>
